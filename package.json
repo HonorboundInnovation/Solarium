@@ -1,0 +1,37 @@
+{
+  "name": "solarium",
+  "version": "0.1.0",
+  "description": "Headless, agent-controlled browser runtime for legitimate automation, research, and authorized web security testing.",
+  "type": "module",
+  "bin": {
+    "solarium": "dist/cli/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx src/cli/index.ts",
+    "browse": "tsx src/cli/index.ts browse",
+    "install:browsers": "playwright install",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "browser-automation",
+    "agent",
+    "playwright",
+    "security-research",
+    "headless-browser"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "playwright": "^1.49.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
