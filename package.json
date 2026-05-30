@@ -15,7 +15,8 @@
     "dev": "tsx src/cli/index.ts",
     "browse": "tsx src/cli/index.ts browse",
     "install:browsers": "playwright install",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "npm run build"
   },
   "keywords": [
     "browser-automation",
@@ -34,5 +35,19 @@
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "schemas",
+    "skills/solarium"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   }
 }
