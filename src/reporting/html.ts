@@ -126,6 +126,8 @@ function describeAction(action: AgentAction): string {
     case "navigate":
       return action.url;
     case "click":
+    case "dblclick":
+    case "hover":
       return action.selector;
     case "type":
       return `${action.selector} (${action.text.length} characters)`;
@@ -141,6 +143,10 @@ function describeAction(action: AgentAction): string {
       return `${action.selector} submitted`;
     case "wait":
       return `${action.ms}ms`;
+    case "waitForSelector":
+      return `${action.selector} (${action.state ?? "visible"}, timeout ${action.timeoutMs ?? 30_000}ms)`;
+    case "waitForUrl":
+      return `${action.url} (timeout ${action.timeoutMs ?? 30_000}ms)`;
     case "screenshot":
       return action.path ?? "(default path)";
     case "extract":

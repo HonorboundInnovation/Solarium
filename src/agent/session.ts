@@ -136,6 +136,15 @@ export class AgentSession {
           assertUrlInScope(page.url(), scope);
           break;
         }
+        case "dblclick": {
+          await page.dblclick(action.selector);
+          assertUrlInScope(page.url(), scope);
+          break;
+        }
+        case "hover": {
+          await page.hover(action.selector);
+          break;
+        }
         case "type": {
           await page.type(action.selector, action.text);
           break;
@@ -186,6 +195,16 @@ export class AgentSession {
         }
         case "wait": {
           await page.wait(action.ms);
+          break;
+        }
+        case "waitForSelector": {
+          await page.waitForSelector(action.selector, { state: action.state, timeoutMs: action.timeoutMs });
+          break;
+        }
+        case "waitForUrl": {
+          assertUrlInScope(action.url, scope);
+          await page.waitForUrl(action.url, { timeoutMs: action.timeoutMs });
+          assertUrlInScope(page.url(), scope);
           break;
         }
         case "screenshot": {

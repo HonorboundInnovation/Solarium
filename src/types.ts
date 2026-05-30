@@ -208,6 +208,8 @@ export interface BrowseResult {
 export type AgentAction =
   | { type: "navigate"; url: string; waitUntil?: NavigateOptions["waitUntil"]; timeoutMs?: number }
   | { type: "click"; selector: string }
+  | { type: "dblclick"; selector: string }
+  | { type: "hover"; selector: string }
   | { type: "type"; selector: string; text: string }
   | { type: "press"; selector: string; key: string }
   | { type: "select"; selector: string; values: string | string[] }
@@ -215,6 +217,8 @@ export type AgentAction =
   | { type: "uncheck"; selector: string }
   | { type: "submit"; selector: string }
   | { type: "wait"; ms: number }
+  | { type: "waitForSelector"; selector: string; state?: "attached" | "detached" | "visible" | "hidden"; timeoutMs?: number }
+  | { type: "waitForUrl"; url: string; timeoutMs?: number }
   | { type: "screenshot"; path?: string; fullPage?: boolean }
   | { type: "extract"; selector?: string; format?: ExtractOptions["format"] }
   | { type: "upload"; selector: string; files: string | string[] }

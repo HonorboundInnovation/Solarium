@@ -60,7 +60,7 @@ export {
   type NetworkPolicyOptions,
   type NetworkPolicyStats
 } from "./security/network-policy.js";
-export { assertUrlInScope, checkUrlScope, hostMatches, type ScopePolicy } from "./security/scope.js";
+export { assertUrlInScope, checkUrlScope, hostMatches, validateScopePolicy, type ScopePolicy } from "./security/scope.js";
 export { readSolariumJob, runJob, validateSolariumJob, type RunJobOptions, type RunJobResult, type SolariumJob, type SolariumJobMode } from "./config/job.js";
 export { validateSolariumConfig, validateSolariumFile, validateActions, type SolariumValidationIssue, type SolariumValidationKind, type SolariumValidationResult } from "./config/validate.js";
 export type * from "./types.js";
@@ -76,3 +76,24 @@ export {
   type ArtifactManifestOptions,
   type ArtifactManifestSummary
 } from "./reporting/artifacts.js";
+
+export {
+  runJsonRpcServer,
+  handleJsonRpcRequest,
+  type JsonRpcRequest,
+  type JsonRpcServerOptions
+} from "./server/json-rpc.js";
+export {
+  SolariumJsonRpcClient,
+  createSolariumJsonRpcClient,
+  launchSolariumServer,
+  type JsonRpcClientOptions,
+  type JsonRpcResponse,
+  type JsonRpcResponseError,
+  type LaunchedSolariumServerClient,
+  type LaunchSolariumServerOptions,
+  type SolariumInitializeResult,
+  type SolariumToolCallResult,
+  type SolariumToolDefinition,
+  type SolariumToolsListResult
+} from "./client/json-rpc.js";

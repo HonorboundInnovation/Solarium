@@ -336,9 +336,13 @@ Supported action types:
 
 - `navigate` — `{ "type": "navigate", "url": "https://example.com" }`
 - `click` — `{ "type": "click", "selector": "text=More" }`
+- `dblclick` — `{ "type": "dblclick", "selector": ".editable-title" }`
+- `hover` — `{ "type": "hover", "selector": "nav .products" }`
 - `type` — `{ "type": "type", "selector": "input[name=q]", "text": "query" }`
 - `press` — `{ "type": "press", "selector": "input[name=q]", "key": "Enter" }`
 - `wait` — `{ "type": "wait", "ms": 1000 }`
+- `waitForSelector` — `{ "type": "waitForSelector", "selector": ".results", "state": "visible", "timeoutMs": 10000 }`
+- `waitForUrl` — `{ "type": "waitForUrl", "url": "**/dashboard", "timeoutMs": 10000 }`
 - `screenshot` — `{ "type": "screenshot", "path": ".solarium/step.png" }`
 - `extract` — `{ "type": "extract", "selector": "main", "format": "text" }`
 - `observe` — `{ "type": "observe" }`
@@ -485,6 +489,27 @@ npm run dev -- session \
 ```
 
 The resume result includes a `resume` object showing completed steps, failed steps, the computed `resumeFromStep`, and the remaining actions that were executed.
+
+
+## JSON-RPC / MCP-style server mode
+
+Solarium can run as a newline-delimited stdio JSON-RPC 2.0 server for external agents and MCP-style clients:
+
+```bash
+npm run dev -- server
+# or after building
+node dist/cli/index.js server
+```
+
+Supported MCP-style methods include `initialize`, `ping`, `tools/list`, and `tools/call`. Direct JSON-RPC tool calls are also supported with method names like `solarium.browse`, `solarium.inspect`, and `solarium.session`.
+
+Example request:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"solarium.browse","arguments":{"url":"https://example.com","observe":true,"headless":true}}}
+```
+
+See [`docs/json-rpc-server.md and `docs/vegvisir-adapter.md``](docs/json-rpc-server.md and `docs/vegvisir-adapter.md`) for the full tool list and protocol examples.
 
 ## Library usage
 
@@ -836,5 +861,5 @@ The runtime validator checks Solarium-specific requirements that are important f
 - `session` jobs requiring `actions` or `actionsPath`
 - `plan` jobs requiring `inspectResult` or `inspectResultPath`
 - `crawl` jobs requiring `scope` or `scopePath`
-- valid action shapes for `navigate`, `click`, `type`, `press`, `wait`, `screenshot`, `extract`, and `observe`
+- valid action shapes for `navigate`, `click`, `dblclick`, `hover`, `type`, `press`, `wait`, `waitForSelector`, `waitForUrl`, `screenshot`, `extract`, and `observe`
 - valid scope host patterns

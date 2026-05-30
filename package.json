@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "dev": "tsx src/cli/index.ts",
     "browse": "tsx src/cli/index.ts browse",
     "install:browsers": "playwright install",

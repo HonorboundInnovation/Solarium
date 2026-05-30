@@ -48,9 +48,13 @@ Current actions:
 
 - `navigate`
 - `click`
+- `dblclick`
+- `hover`
 - `type`
 - `press`
 - `wait`
+- `waitForSelector`
+- `waitForUrl`
 - `screenshot`
 - `extract`
 - `observe`
@@ -101,7 +105,5 @@ The crawler is intentionally scope-first. It requires a policy with `allowedHost
 ## Near-term roadmap
 
 1. Add stronger selector generation for observed elements.
-2. Add storage-state save/load for reproducible authenticated sessions without exposing secrets.
-3. Add download/upload actions with evidence tracking.
-4. Add MCP or JSON-RPC server mode for external agents.
-5. Add tests around scope matching, action validation, network guard behavior, and crawler queueing.
+2. Add MCP or JSON-RPC server mode for external agents.
+3. Add tests around scope matching, action validation, network guard behavior, and crawler queueing.

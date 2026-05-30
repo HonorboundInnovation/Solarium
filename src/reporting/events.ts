@@ -64,6 +64,8 @@ export function summarizeAgentAction(action: AgentAction): Record<string, unknow
     case "navigate":
       return { type: action.type, url: action.url, waitUntil: action.waitUntil, timeoutMs: action.timeoutMs };
     case "click":
+    case "dblclick":
+    case "hover":
       return { type: action.type, selector: action.selector };
     case "type":
       return { type: action.type, selector: action.selector, textLength: action.text.length };
@@ -89,6 +91,10 @@ export function summarizeAgentAction(action: AgentAction): Record<string, unknow
       return { type: action.type, selector: action.selector, path: action.path, timeoutMs: action.timeoutMs };
     case "wait":
       return { type: action.type, ms: action.ms };
+    case "waitForSelector":
+      return { type: action.type, selector: action.selector, state: action.state, timeoutMs: action.timeoutMs };
+    case "waitForUrl":
+      return { type: action.type, url: action.url, timeoutMs: action.timeoutMs };
     case "screenshot":
       return { type: action.type, path: action.path, fullPage: action.fullPage };
     case "extract":

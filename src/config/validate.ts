@@ -133,6 +133,8 @@ function validateAction(action: unknown, index: number): AgentAction {
       requireString(candidate.url, `Action ${index}.url`);
       return candidate as AgentAction;
     case "click":
+    case "dblclick":
+    case "hover":
       requireString(candidate.selector, `Action ${index}.selector`);
       return candidate as AgentAction;
     case "type":
@@ -171,6 +173,17 @@ function validateAction(action: unknown, index: number): AgentAction {
       return candidate as AgentAction;
     case "wait":
       requireNonNegativeNumber(candidate.ms, `Action ${index}.ms`);
+      return candidate as AgentAction;
+    case "waitForSelector":
+      requireString(candidate.selector, `Action ${index}.selector`);
+      if (candidate.state !== undefined && !["attached", "detached", "visible", "hidden"].includes(String(candidate.state))) {
+        throw new Error(`Action ${index}.state must be attached, detached, visible, or hidden`);
+      }
+      if (candidate.timeoutMs !== undefined) requireNonNegativeNumber(candidate.timeoutMs, `Action ${index}.timeoutMs`);
+      return candidate as AgentAction;
+    case "waitForUrl":
+      requireString(candidate.url, `Action ${index}.url`);
+      if (candidate.timeoutMs !== undefined) requireNonNegativeNumber(candidate.timeoutMs, `Action ${index}.timeoutMs`);
       return candidate as AgentAction;
     case "screenshot":
       if (candidate.path !== undefined) requireString(candidate.path, `Action ${index}.path`);

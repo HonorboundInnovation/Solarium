@@ -291,6 +291,12 @@ async function executeLoopAction(page: SolariumPage, action: AgentAction, scope?
     case "click":
       await page.click(action.selector);
       return;
+    case "dblclick":
+      await page.dblclick(action.selector);
+      return;
+    case "hover":
+      await page.hover(action.selector);
+      return;
     case "type":
       await page.type(action.selector, action.text);
       return;
@@ -299,6 +305,13 @@ async function executeLoopAction(page: SolariumPage, action: AgentAction, scope?
       return;
     case "wait":
       await page.wait(action.ms);
+      return;
+    case "waitForSelector":
+      await page.waitForSelector(action.selector, { state: action.state, timeoutMs: action.timeoutMs });
+      return;
+    case "waitForUrl":
+      assertUrlInScope(action.url, scope);
+      await page.waitForUrl(action.url, { timeoutMs: action.timeoutMs });
       return;
     case "screenshot":
       await page.screenshot({ path: action.path, fullPage: action.fullPage ?? true });

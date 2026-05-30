@@ -18,6 +18,7 @@ import { createSessionResumePlan, replayEvents } from "../reporting/replay.js";
 import { renderAuditHtmlReport, renderCrawlHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
 import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
+import { runJsonRpcServer } from "../server/json-rpc.js";
 import { checkUrlScope, validateScopePolicy, type ScopePolicy } from "../security/scope.js";
 import type { AgentAction, BrowserEngine, BrowserProfile, BrowserProfileName, InspectResult } from "../types.js";
 
@@ -647,6 +648,19 @@ program
 
 
 program
+  .command("server")
+  .description("Run a stdio JSON-RPC/MCP-style server for external agents")
+  .action(async () => {
+    try {
+      await runJsonRpcServer();
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    }
+  });
+
+
+program
   .command("manifest")
   .description("Create a SHA-256 artifact manifest for Solarium evidence/report directories")
   .argument("<paths...>", "Evidence files or directories to inventory")
@@ -744,6 +758,8 @@ function validateAction(action: unknown, index: number): AgentAction {
       requireString(candidate.url, `Action ${index}.url`);
       return candidate as AgentAction;
     case "click":
+    case "dblclick":
+    case "hover":
       requireString(candidate.selector, `Action ${index}.selector`);
       return candidate as AgentAction;
     case "type":
@@ -782,6 +798,17 @@ function validateAction(action: unknown, index: number): AgentAction {
       return candidate as AgentAction;
     case "wait":
       requireNonNegativeNumber(candidate.ms, `Action ${index}.ms`);
+      return candidate as AgentAction;
+    case "waitForSelector":
+      requireString(candidate.selector, `Action ${index}.selector`);
+      if (candidate.state !== undefined && !["attached", "detached", "visible", "hidden"].includes(String(candidate.state))) {
+        throw new Error(`Action ${index}.state must be attached, detached, visible, or hidden`);
+      }
+      if (candidate.timeoutMs !== undefined) requireNonNegativeNumber(candidate.timeoutMs, `Action ${index}.timeoutMs`);
+      return candidate as AgentAction;
+    case "waitForUrl":
+      requireString(candidate.url, `Action ${index}.url`);
+      if (candidate.timeoutMs !== undefined) requireNonNegativeNumber(candidate.timeoutMs, `Action ${index}.timeoutMs`);
       return candidate as AgentAction;
     case "screenshot":
     case "extract":

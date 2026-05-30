@@ -29,6 +29,14 @@ export class SolariumPage {
     await this.page.click(selector);
   }
 
+  async dblclick(selector: string): Promise<void> {
+    await this.page.dblclick(selector);
+  }
+
+  async hover(selector: string): Promise<void> {
+    await this.page.hover(selector);
+  }
+
   async type(selector: string, text: string): Promise<void> {
     await this.page.fill(selector, text);
   }
@@ -65,6 +73,20 @@ export class SolariumPage {
 
   async wait(ms: number): Promise<void> {
     await this.page.waitForTimeout(ms);
+  }
+
+  async waitForSelector(
+    selector: string,
+    options: { state?: "attached" | "detached" | "visible" | "hidden"; timeoutMs?: number } = {}
+  ): Promise<void> {
+    await this.page.waitForSelector(selector, {
+      state: options.state ?? "visible",
+      timeout: options.timeoutMs ?? 30_000
+    });
+  }
+
+  async waitForUrl(url: string, options: { timeoutMs?: number } = {}): Promise<void> {
+    await this.page.waitForURL(url, { timeout: options.timeoutMs ?? 30_000 });
   }
 
   async title(): Promise<string> {
