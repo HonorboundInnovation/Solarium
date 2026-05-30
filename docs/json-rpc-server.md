@@ -101,6 +101,7 @@ After initialization, MCP clients may send:
 - `solarium.loop` — run a bounded inspect-plan-act loop.
 - `solarium.crawl` — crawl in-scope pages; requires a scope policy.
 - `solarium.audit` — passive defensive audit of an authorized page.
+- `solarium.graphqlAudit` — bounded non-DoS GraphQL endpoint/schema audit for an authorized target.
 - `solarium.scopeCheck` — check a URL against a scope policy.
 - `solarium.validate` — validate job/scope/actions JSON.
 - `solarium.profiles` — list built-in browser profiles.
@@ -139,7 +140,7 @@ Unexpected tool failures return `-32603`.
 
 ## Security boundary
 
-External agents should pass explicit `scope` objects for security-sensitive browsing, crawling, auditing, and loop runs. `solarium.crawl` requires scope. Storage state files, downloads, screenshots, and traces can contain sensitive local artifacts; keep generated paths under an agent-controlled evidence directory and out of source control.
+External agents should pass explicit `scope` objects for security-sensitive browsing, crawling, auditing, GraphQL auditing, and loop runs. `solarium.crawl` requires scope. Storage state files, downloads, screenshots, and traces can contain sensitive local artifacts; keep generated paths under an agent-controlled evidence directory and out of source control.
 
 The server uses stdio only. It does not open a network listener.
 

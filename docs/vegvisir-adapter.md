@@ -117,6 +117,7 @@ A Vegvisir adapter can map Solarium tools into harness capabilities like this:
 | Browser agent loop | `solarium.loop` | Run bounded inspect-plan-act loops. |
 | Site crawl | `solarium.crawl` | Inventory authorized pages, links, forms, observations. |
 | Defensive audit | `solarium.audit` | Passive page security checks. |
+| GraphQL audit | `solarium.graphqlAudit` | Bounded endpoint/schema checks with JSON/Markdown/HTML report renderers available through the package API/CLI. |
 | Scope guard | `solarium.scopeCheck` | Check whether a URL is allowed before browsing. |
 | Config validation | `solarium.validate` | Validate action/scope/job JSON. |
 | Evidence manifest | `solarium.manifest` | Hash evidence/report artifacts for provenance. |
@@ -125,7 +126,7 @@ A Vegvisir adapter can map Solarium tools into harness capabilities like this:
 
 Adapters should preserve these Solarium conventions:
 
-- Provide a `scope` object for real targets, especially crawls and audits.
+- Provide a `scope` object for real targets, especially crawls, audits, and GraphQL audits.
 - Include a human-readable `authorizationNote` for sensitive workflows.
 - Prefer `headless: true` for CI/agent operation unless visual debugging is needed.
 - Store authenticated browser state in Playwright storage-state files managed by the caller; do not pass plaintext credentials through chat or logs.

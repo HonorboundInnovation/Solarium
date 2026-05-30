@@ -152,6 +152,7 @@ Supported commands:
 - `session`
 - `crawl`
 - `audit`
+- `graphql-audit`
 - `loop`
 
 Use `--storage-state <path>` to load cookies/localStorage/sessionStorage into the browser context, and `--save-storage-state <path>` to write the final context state when the browser closes. Storage state files can contain sensitive authenticated session material, so keep them out of source control and treat them as local artifacts.
@@ -415,9 +416,41 @@ Current passive findings include:
 - insecure form actions
 - password forms on non-HTTPS pages
 
+## GraphQL audit mode
+
+Solarium can also run bounded, non-DoS GraphQL endpoint and schema checks for an authorized target. The GraphQL audit supports the same JSON, Markdown, and HTML report pattern as the passive browser audit.
+
+```bash
+npm run dev -- graphql-audit https://example.com \
+  --scope .solarium/scope.json \
+  --endpoint /graphql \
+  --output .solarium/graphql-audit-result.json \
+  --report .solarium/graphql-audit-report.md \
+  --html-report .solarium/graphql-audit-report.html
+```
+
+The GraphQL audit probes a small set of candidate endpoints, sends minimal `__typename`/introspection/suggestion/batching checks, and can optionally run known safe read-only data exposure probes when matching schema fields exist:
+
+```bash
+npm run dev -- graphql-audit https://example.com \
+  --scope .solarium/scope.json \
+  --safe-data-probes
+```
+
+Current GraphQL findings include:
+
+- endpoint detection
+- introspection enabled/not confirmed
+- sensitive-looking schema field names
+- dangerous-looking operation names
+- GET query support
+- field suggestions
+- batching support
+- optional known read-only exposure probes
+
 ## Human-readable reports
 
-`session`, `crawl`, and `audit` can write human-readable Markdown and HTML reports in addition to JSON results:
+`session`, `crawl`, `audit`, and `graphql-audit` can write human-readable Markdown and HTML reports in addition to JSON results:
 
 ```bash
 npm run dev -- audit https://example.com \
@@ -616,7 +649,7 @@ console.log(plan.notes, result.ok);
 Audit API:
 
 ```ts
-import { audit } from "solarium";
+import { audit, graphqlAudit, renderGraphqlAuditMarkdownReport } from "solarium";
 
 const result = await audit({
   url: "https://example.com",
@@ -626,7 +659,17 @@ const result = await audit({
   }
 });
 
-console.log(result.summary, result.findings);
+const gql = await graphqlAudit({
+  url: "https://example.com",
+  endpoint: "/graphql",
+  scope: {
+    allowedHosts: ["example.com"],
+    authorizationNote: "Authorized GraphQL audit"
+  }
+});
+
+console.log(result.summary, gql.summary);
+console.log(renderGraphqlAuditMarkdownReport(gql));
 ```
 
 Replay API:
@@ -737,6 +780,7 @@ Supported job modes:
 - `session`
 - `crawl`
 - `audit`
+- `graphql-audit`
 - `loop`
 - `replay`
 

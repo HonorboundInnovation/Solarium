@@ -23,6 +23,8 @@ test("handleJsonRpcRequest initializes and lists Solarium tools", async () => {
   assert.ok(names.includes("solarium.browse"));
   assert.ok(names.includes("solarium.scopeCheck"));
   assert.ok(names.includes("solarium.manifest"));
+  assert.ok(names.includes("solarium.audit"));
+  assert.ok(names.includes("solarium.graphqlAudit"));
 });
 
 test("handleJsonRpcRequest supports MCP-style tools/call", async () => {

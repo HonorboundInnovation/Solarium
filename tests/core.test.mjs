@@ -8,7 +8,11 @@ import {
   validateSolariumConfig,
   validateActions,
   summarizeAgentAction,
-  renderSessionMarkdownReport
+  renderSessionMarkdownReport,
+  renderAuditMarkdownReport,
+  renderAuditHtmlReport,
+  renderGraphqlAuditMarkdownReport,
+  renderGraphqlAuditHtmlReport
 } from "../dist/index.js";
 
 test("hostMatches supports exact hosts case-insensitively", () => {
@@ -129,4 +133,63 @@ test("renderSessionMarkdownReport describes new action types", () => {
 
   assert.match(report, /Step 1: hover/);
   assert.match(report, /Step 2: waitForSelector/);
+});
+
+
+test("audit and GraphQL audit render Markdown and HTML reports", () => {
+  const baseFinding = {
+    id: "missing-content-security-policy",
+    category: "headers",
+    severity: "medium",
+    title: "Missing CSP",
+    description: "Content-Security-Policy is not present.",
+    recommendation: "Add an application-specific CSP.",
+    evidence: { header: "content-security-policy", value: null }
+  };
+
+  const auditResult = {
+    url: "https://example.com",
+    finalUrl: "https://example.com/",
+    title: "Example",
+    startedAt: "2025-01-01T00:00:00.000Z",
+    finishedAt: "2025-01-01T00:00:01.000Z",
+    ok: true,
+    findings: [baseFinding],
+    summary: { info: 0, low: 0, medium: 1, high: 0 },
+    networkPolicy: { allowedRequests: 1, blockedRequests: 0, rateLimitedRequests: 0 }
+  };
+
+  const auditMarkdown = renderAuditMarkdownReport(auditResult);
+  const auditHtml = renderAuditHtmlReport(auditResult);
+  assert.match(auditMarkdown, /Solarium Audit Report/);
+  assert.match(auditMarkdown, /Missing CSP/);
+  assert.match(auditHtml, /<!doctype html>/);
+  assert.match(auditHtml, /Missing CSP/);
+
+  const graphqlResult = {
+    url: "https://example.com",
+    endpoint: "https://example.com/graphql",
+    startedAt: "2025-01-01T00:00:00.000Z",
+    finishedAt: "2025-01-01T00:00:01.000Z",
+    ok: true,
+    endpointCandidates: ["https://example.com/graphql"],
+    endpointProbes: [{ url: "https://example.com/graphql", ok: true, status: 200, typename: "Query" }],
+    findings: [{ ...baseFinding, id: "graphql-introspection-enabled", category: "graphql", title: "GraphQL introspection is enabled" }],
+    summary: { info: 0, low: 0, medium: 1, high: 0 },
+    inventory: {
+      queryFields: ["viewer"],
+      mutationFields: [],
+      subscriptionFields: [],
+      sensitiveFields: [],
+      dangerousFields: []
+    },
+    networkPolicy: { allowedRequests: 0, blockedRequests: 0, rateLimitedRequests: 0 }
+  };
+
+  const gqlMarkdown = renderGraphqlAuditMarkdownReport(graphqlResult);
+  const gqlHtml = renderGraphqlAuditHtmlReport(graphqlResult);
+  assert.match(gqlMarkdown, /Solarium GraphQL Audit Report/);
+  assert.match(gqlMarkdown, /Endpoint Probes/);
+  assert.match(gqlHtml, /<!doctype html>/);
+  assert.match(gqlHtml, /Schema Operation Inventory/);
 });

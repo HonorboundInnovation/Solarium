@@ -7,6 +7,7 @@ import { planActionsFromInspectResult } from "../agent/plan.js";
 import { runActions } from "../agent/session.js";
 import { runLoop } from "../agent/loop.js";
 import { audit } from "../security/audit.js";
+import { graphqlAudit } from "../security/graphql-audit.js";
 import { crawl } from "../security/crawler.js";
 import { checkUrlScope, validateScopePolicy, type ScopePolicy } from "../security/scope.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
@@ -169,6 +170,21 @@ const tools: ToolDefinition[] = [
       maxTextChars: { type: "number", minimum: 0 },
       maxElements: { type: "number", minimum: 0 }
     }, ["url"])
+  },
+  {
+    name: "solarium.graphqlAudit",
+    description: "Run bounded non-DoS GraphQL endpoint and schema security checks for an authorized target.",
+    inputSchema: objectSchema({
+      url: { type: "string" },
+      scope: scopeSchema(),
+      endpoint: { type: "string" },
+      outputPath: { type: "string" },
+      timeoutMs: { type: "number", minimum: 0 },
+      includeIntrospectionSchema: { type: "boolean" },
+      batchCheck: { type: "boolean" },
+      safeDataProbes: { type: "boolean" },
+      maxEndpoints: { type: "number", minimum: 0 }
+    }, ["url", "scope"])
   },
   {
     name: "solarium.scopeCheck",
@@ -384,6 +400,18 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
         headless: optionalBoolean(args.headless, true),
         includeObservation: optionalBoolean(args.includeObservation, false),
         observationOptions: observationOptions(args)
+      });
+    case "solarium.graphqlAudit":
+      return graphqlAudit({
+        url: requireString(args.url, "url"),
+        scope: requiredScope(args.scope),
+        endpoint: optionalString(args.endpoint),
+        outputPath: optionalString(args.outputPath),
+        timeoutMs: optionalNumber(args.timeoutMs),
+        maxEndpoints: optionalNumber(args.maxEndpoints),
+        includeIntrospectionSchema: optionalBoolean(args.includeIntrospectionSchema, false),
+        batchCheck: optionalBooleanOrUndefined(args.batchCheck),
+        safeDataProbes: optionalBoolean(args.safeDataProbes, false)
       });
     case "solarium.scopeCheck":
       return checkUrlScope(requireString(args.url, "url"), requiredScope(args.scope));

@@ -13,7 +13,6 @@ export interface MarkdownReportOptions {
   includeJsonAppendix?: boolean;
 }
 
-
 export function renderGraphqlAuditMarkdownReport(result: GraphqlAuditResult, options: MarkdownReportOptions = {}): string {
   const lines: string[] = [];
   lines.push(`# ${escapeMarkdown(options.title ?? "Solarium GraphQL Audit Report")}`);

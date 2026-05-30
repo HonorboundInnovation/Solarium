@@ -6,7 +6,6 @@ export interface HtmlReportOptions {
   includeJsonAppendix?: boolean;
 }
 
-
 export function renderGraphqlAuditHtmlReport(result: GraphqlAuditResult, options: HtmlReportOptions = {}): string {
   const title = options.title ?? "Solarium GraphQL Audit Report";
   const body: string[] = [];

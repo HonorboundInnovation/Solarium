@@ -7,9 +7,10 @@ import { planActionsFromInspectResult } from "../agent/plan.js";
 import { runActions } from "../agent/session.js";
 import { createJsonlEventLogger } from "../reporting/events.js";
 import { replayEvents } from "../reporting/replay.js";
-import { renderAuditHtmlReport, renderCrawlHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
-import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
+import { renderAuditHtmlReport, renderCrawlHtmlReport, renderGraphqlAuditHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
+import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderGraphqlAuditMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
 import { audit } from "../security/audit.js";
+import { graphqlAudit, type GraphqlAuditResult } from "../security/graphql-audit.js";
 import { crawl } from "../security/crawler.js";
 import { readBrowserProfile } from "../browser/profile-store.js";
 import { validateScopePolicy, type ScopePolicy } from "../security/scope.js";
@@ -28,7 +29,7 @@ import type {
   AgentSessionResult
 } from "../types.js";
 
-export type SolariumJobMode = "browse" | "inspect" | "plan" | "session" | "crawl" | "audit" | "loop" | "replay";
+export type SolariumJobMode = "browse" | "inspect" | "plan" | "session" | "crawl" | "audit" | "graphql-audit" | "loop" | "replay";
 
 export interface SolariumJob {
   mode: SolariumJobMode;
@@ -82,7 +83,7 @@ export function validateSolariumJob(value: unknown): SolariumJob {
   }
 
   const job = value as SolariumJob;
-  const modes = new Set<SolariumJobMode>(["browse", "inspect", "plan", "session", "crawl", "audit", "loop", "replay"]);
+  const modes = new Set<SolariumJobMode>(["browse", "inspect", "plan", "session", "crawl", "audit", "graphql-audit", "loop", "replay"]);
   if (!modes.has(job.mode)) {
     throw new Error(`Unsupported Solarium job mode: ${String(job.mode)}`);
   }
@@ -221,6 +222,22 @@ export async function runJob(job: SolariumJob, options: RunJobOptions = {}): Pro
       break;
     }
 
+    case "graphql-audit": {
+      if (!scope) throw new Error("graphql-audit jobs require scope or scopePath");
+      result = await graphqlAudit({
+        url: requireUrl(job),
+        scope,
+        endpoint: optionalString(opt.endpoint),
+        outputPath: resolveOptionalPath(baseDir, optionalString(opt.outputPath)),
+        timeoutMs: optionalNumber(opt.timeoutMs),
+        maxEndpoints: optionalNumber(opt.maxEndpoints),
+        includeIntrospectionSchema: optionalBoolean(opt.includeIntrospectionSchema),
+        batchCheck: optionalBooleanOrUndefined(opt.batchCheck),
+        safeDataProbes: optionalBoolean(opt.safeDataProbes)
+      });
+      break;
+    }
+
     case "loop": {
       result = await runLoop({
         ...common,
@@ -290,6 +307,10 @@ async function maybeWriteReports(job: SolariumJob, baseDir: string, result: unkn
     case "audit":
       if (markdownPath) await writeTextFile(markdownPath, renderAuditMarkdownReport(result as AuditResult, reportOptions));
       if (htmlPath) await writeTextFile(htmlPath, renderAuditHtmlReport(result as AuditResult, reportOptions));
+      return;
+    case "graphql-audit":
+      if (markdownPath) await writeTextFile(markdownPath, renderGraphqlAuditMarkdownReport(result as GraphqlAuditResult, reportOptions));
+      if (htmlPath) await writeTextFile(htmlPath, renderGraphqlAuditHtmlReport(result as GraphqlAuditResult, reportOptions));
       return;
     case "loop":
       if (markdownPath) await writeTextFile(markdownPath, renderLoopMarkdownReport(result as LoopResult, reportOptions));

@@ -17,8 +17,10 @@ export { inspectPage } from "./agent/inspect.js";
 export { planActionsFromInspectResult, type PlanActionsOptions } from "./agent/plan.js";
 export { crawl } from "./security/crawler.js";
 export { audit } from "./security/audit.js";
+export { graphqlAudit, type GraphqlAuditOptions, type GraphqlAuditResult, type GraphqlEndpointProbe, type GraphqlOperationInventory } from "./security/graphql-audit.js";
 export {
   renderAuditMarkdownReport,
+  renderGraphqlAuditMarkdownReport,
   renderCrawlMarkdownReport,
   renderLoopMarkdownReport,
   renderSessionMarkdownReport,
@@ -26,6 +28,7 @@ export {
 } from "./reporting/markdown.js";
 export {
   renderAuditHtmlReport,
+  renderGraphqlAuditHtmlReport,
   renderCrawlHtmlReport,
   renderLoopHtmlReport,
   renderSessionHtmlReport,
