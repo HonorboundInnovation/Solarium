@@ -106,7 +106,17 @@ After initialization, MCP clients may send:
 - `solarium.profiles` — list built-in browser profiles.
 - `solarium.profile` — show a built-in browser profile.
 - `solarium.replay` — summarize a JSONL event timeline from disk.
-- `solarium.manifest` — create a SHA-256 artifact manifest.
+- `solarium.manifest` — create a SHA-256 artifact manifest or `solarium.evidence.v1` evidence run manifest.
+
+## Evidence manifest mode
+
+`solarium.manifest` can return the original artifact manifest or a standardized evidence run manifest. Pass `evidence: true` for the richer wrapper:
+
+```json
+{"jsonrpc":"2.0","id":5,"method":"solarium.manifest","params":{"roots":[".solarium/sessions/example"],"evidence":true,"runId":"example","kind":"session","url":"https://example.com"}}
+```
+
+The evidence manifest includes `schemaVersion: "solarium.evidence.v1"`, run metadata, target metadata, optional scope, action summaries, network policy, artifact hashes, and errors. Action summaries omit typed text values.
 
 ## Error behavior
 

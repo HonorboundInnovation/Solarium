@@ -18,6 +18,7 @@ import { createSessionResumePlan, replayEvents } from "../reporting/replay.js";
 import { renderAuditHtmlReport, renderCrawlHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
 import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
+import { createEvidenceRunManifest, type EvidenceRunKind } from "../reporting/evidence.js";
 import { runJsonRpcServer } from "../server/json-rpc.js";
 import { checkUrlScope, validateScopePolicy, type ScopePolicy } from "../security/scope.js";
 import type { AgentAction, BrowserEngine, BrowserProfile, BrowserProfileName, InspectResult } from "../types.js";
@@ -667,14 +668,32 @@ program
   .option("-o, --output <path>", "Write the manifest JSON to a file")
   .option("--include-hidden", "Include hidden files/directories below the selected roots")
   .option("--max-file-bytes <number>", "Skip hashing files larger than this many bytes", parseInteger)
+  .option("--evidence", "Create a standardized Solarium evidence run manifest instead of a plain artifact manifest")
+  .option("--run-id <id>", "Evidence run identifier")
+  .option("--kind <kind>", "Evidence run kind: browse, inspect, session, loop, crawl, audit, replay, or manual", "manual")
+  .option("--status <status>", "Evidence run status: ok, error, or partial")
+  .option("--url <url>", "Evidence target URL")
+  .option("--title <title>", "Evidence target title")
   .action(async (paths: string[], options: Record<string, unknown>) => {
     try {
-      const manifest = await createArtifactManifest({
-        roots: paths,
-        output: options.output as string | undefined,
-        includeHidden: Boolean(options.includeHidden),
-        maxFileBytes: options.maxFileBytes as number | undefined
-      });
+      const manifest = options.evidence
+        ? await createEvidenceRunManifest({
+            roots: paths,
+            output: options.output as string | undefined,
+            includeHidden: Boolean(options.includeHidden),
+            maxFileBytes: options.maxFileBytes as number | undefined,
+            runId: (options.runId as string | undefined) ?? `run-${Date.now()}`,
+            kind: ((options.kind as string | undefined) ?? "manual") as EvidenceRunKind,
+            status: options.status as "ok" | "error" | "partial" | undefined,
+            url: options.url as string | undefined,
+            title: options.title as string | undefined
+          })
+        : await createArtifactManifest({
+            roots: paths,
+            output: options.output as string | undefined,
+            includeHidden: Boolean(options.includeHidden),
+            maxFileBytes: options.maxFileBytes as number | undefined
+          });
 
       console.log(JSON.stringify(manifest, null, 2));
     } catch (error) {

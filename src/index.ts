@@ -76,6 +76,14 @@ export {
   type ArtifactManifestOptions,
   type ArtifactManifestSummary
 } from "./reporting/artifacts.js";
+export {
+  createEvidenceRunManifest,
+  summarizeEvidenceAction,
+  type EvidenceActionSummary,
+  type EvidenceManifestOptions,
+  type EvidenceRunKind,
+  type EvidenceRunManifest
+} from "./reporting/evidence.js";
 
 export {
   runJsonRpcServer,

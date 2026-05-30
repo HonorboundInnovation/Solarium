@@ -10,6 +10,7 @@ import { audit } from "../security/audit.js";
 import { crawl } from "../security/crawler.js";
 import { checkUrlScope, validateScopePolicy, type ScopePolicy } from "../security/scope.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
+import { createEvidenceRunManifest } from "../reporting/evidence.js";
 import { replayEvents } from "../reporting/replay.js";
 import { getBuiltInProfile, listBuiltInProfiles } from "../browser/profile-store.js";
 import { validateSolariumConfig } from "../config/validate.js";
@@ -195,12 +196,23 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "solarium.manifest",
-    description: "Create a SHA-256 artifact manifest for evidence/report files or directories.",
+    description: "Create a SHA-256 artifact manifest or standardized Solarium evidence run manifest.",
     inputSchema: objectSchema({
       roots: { type: "array", items: { type: "string" } },
       output: { type: "string" },
       includeHidden: { type: "boolean" },
-      maxFileBytes: { type: "number", minimum: 0 }
+      maxFileBytes: { type: "number", minimum: 0 },
+      evidence: { type: "boolean" },
+      runId: { type: "string" },
+      kind: { type: "string" },
+      status: { type: "string", enum: ["ok", "error", "partial"] },
+      url: { type: "string" },
+      finalUrl: { type: "string" },
+      title: { type: "string" },
+      scope: { type: "object" },
+      actions: { type: "array", items: { type: "object" } },
+      metadata: { type: "object" },
+      errors: { type: "array", items: { type: "string" } }
     }, ["roots"])
   }
 ];
@@ -370,13 +382,33 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
       return requireBuiltInProfile(requireString(args.name, "name") as BrowserProfileName);
     case "solarium.replay":
       return replayEvents(requireString(args.events, "events"));
-    case "solarium.manifest":
+    case "solarium.manifest": {
+      const roots = requireStringArray(args.roots, "roots");
+      if (optionalBoolean(args.evidence, false)) {
+        return createEvidenceRunManifest({
+          roots,
+          output: optionalString(args.output),
+          includeHidden: optionalBoolean(args.includeHidden, false),
+          maxFileBytes: optionalNumber(args.maxFileBytes),
+          runId: optionalString(args.runId) ?? `run-${Date.now()}`,
+          kind: (optionalString(args.kind) ?? "manual") as never,
+          status: optionalString(args.status) as never,
+          url: optionalString(args.url),
+          finalUrl: optionalString(args.finalUrl),
+          title: optionalString(args.title),
+          scope: args.scope,
+          actions: args.actions === undefined ? undefined : requireActions(args.actions),
+          metadata: args.metadata === undefined ? undefined : expectObject(args.metadata, "metadata"),
+          errors: optionalStringArray(args.errors)
+        });
+      }
       return createArtifactManifest({
-        roots: requireStringArray(args.roots, "roots"),
+        roots,
         output: optionalString(args.output),
         includeHidden: optionalBoolean(args.includeHidden, false),
         maxFileBytes: optionalNumber(args.maxFileBytes)
       });
+    }
     default:
       throw rpcError(-32601, `Unknown tool: ${name}`);
   }
