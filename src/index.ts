@@ -105,3 +105,12 @@ export {
   type SolariumToolDefinition,
   type SolariumToolsListResult
 } from "./client/json-rpc.js";
+
+export {
+  createWorkflowSeedFromFiles,
+  createWorkflowSeedMarkdown,
+  renderWorkflowSeedMarkdown,
+  type WorkflowSeedFromFilesOptions,
+  type WorkflowSeedInput,
+  type WorkflowSeedOptions
+} from "./skills/workflow-seed.js";

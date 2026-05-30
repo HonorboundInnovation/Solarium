@@ -11,6 +11,7 @@ import { crawl } from "../security/crawler.js";
 import { checkUrlScope, validateScopePolicy, type ScopePolicy } from "../security/scope.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
 import { createEvidenceRunManifest } from "../reporting/evidence.js";
+import { createWorkflowSeedFromFiles } from "../skills/workflow-seed.js";
 import { replayEvents } from "../reporting/replay.js";
 import { getBuiltInProfile, listBuiltInProfiles } from "../browser/profile-store.js";
 import { validateSolariumConfig } from "../config/validate.js";
@@ -193,6 +194,18 @@ const tools: ToolDefinition[] = [
     name: "solarium.replay",
     description: "Summarize a JSONL Solarium event timeline from disk.",
     inputSchema: objectSchema({ events: { type: "string" } }, ["events"])
+  },
+  {
+    name: "solarium.workflowSeed",
+    description: "Generate a reusable Skiller-style Markdown workflow seed from Solarium action JSON and optional evidence manifest.",
+    inputSchema: objectSchema({
+      actionsPath: { type: "string" },
+      evidencePath: { type: "string" },
+      output: { type: "string" },
+      name: { type: "string" },
+      description: { type: "string" },
+      source: { type: "string" }
+    }, ["actionsPath"])
   },
   {
     name: "solarium.manifest",
@@ -382,6 +395,17 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
       return requireBuiltInProfile(requireString(args.name, "name") as BrowserProfileName);
     case "solarium.replay":
       return replayEvents(requireString(args.events, "events"));
+    case "solarium.workflowSeed":
+      return {
+        markdown: await createWorkflowSeedFromFiles({
+          actionsPath: requireString(args.actionsPath, "actionsPath"),
+          evidencePath: optionalString(args.evidencePath),
+          output: optionalString(args.output),
+          name: optionalString(args.name),
+          description: optionalString(args.description),
+          source: optionalString(args.source)
+        })
+      };
     case "solarium.manifest": {
       const roots = requireStringArray(args.roots, "roots");
       if (optionalBoolean(args.evidence, false)) {

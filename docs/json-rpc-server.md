@@ -106,7 +106,18 @@ After initialization, MCP clients may send:
 - `solarium.profiles` — list built-in browser profiles.
 - `solarium.profile` — show a built-in browser profile.
 - `solarium.replay` — summarize a JSONL event timeline from disk.
+- `solarium.workflowSeed` — generate Skiller-style workflow seed Markdown from action JSON and optional evidence.
 - `solarium.manifest` — create a SHA-256 artifact manifest or `solarium.evidence.v1` evidence run manifest.
+
+## Workflow seed generation
+
+`solarium.workflowSeed` converts a JSON action trace and optional evidence manifest into reusable Skiller-style Markdown.
+
+```json
+{"jsonrpc":"2.0","id":6,"method":"solarium.workflowSeed","params":{"actionsPath":"actions/login-smoke.json","evidencePath":".solarium/sessions/login/evidence.json","name":"Login smoke workflow","output":"skills/solarium/generated/login-smoke.md"}}
+```
+
+Typed text values are redacted in the generated seed and replaced with `${input.form_values}` placeholders.
 
 ## Evidence manifest mode
 

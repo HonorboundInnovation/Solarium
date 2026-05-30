@@ -19,6 +19,7 @@ import { renderAuditHtmlReport, renderCrawlHtmlReport, renderLoopHtmlReport, ren
 import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
 import { createEvidenceRunManifest, type EvidenceRunKind } from "../reporting/evidence.js";
+import { createWorkflowSeedFromFiles } from "../skills/workflow-seed.js";
 import { runJsonRpcServer } from "../server/json-rpc.js";
 import { checkUrlScope, validateScopePolicy, type ScopePolicy } from "../security/scope.js";
 import type { AgentAction, BrowserEngine, BrowserProfile, BrowserProfileName, InspectResult } from "../types.js";
@@ -660,6 +661,33 @@ program
     }
   });
 
+
+
+program
+  .command("skill-seed")
+  .description("Generate a Skiller-style workflow seed Markdown file from Solarium actions and optional evidence")
+  .requiredOption("-a, --actions <path>", "Path to a JSON file containing AgentAction[]")
+  .option("--evidence <path>", "Path to a solarium.evidence.v1 manifest")
+  .option("-o, --output <path>", "Write the generated Markdown seed to a file")
+  .option("--name <name>", "Workflow seed title")
+  .option("--description <text>", "Workflow seed purpose text")
+  .option("--source <source>", "Source label/path to include in the seed")
+  .action(async (options: Record<string, unknown>) => {
+    try {
+      const markdown = await createWorkflowSeedFromFiles({
+        actionsPath: options.actions as string,
+        evidencePath: options.evidence as string | undefined,
+        output: options.output as string | undefined,
+        name: options.name as string | undefined,
+        description: options.description as string | undefined,
+        source: options.source as string | undefined
+      });
+      console.log(markdown);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    }
+  });
 
 program
   .command("manifest")
