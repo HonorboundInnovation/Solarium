@@ -35,6 +35,7 @@ export interface SolariumInitializeResult {
     version?: string;
   };
   capabilities?: Record<string, unknown>;
+  instructions?: string;
 }
 
 export interface SolariumToolsListResult {
@@ -99,6 +100,10 @@ export class SolariumJsonRpcClient {
 
   async initialize(params: Record<string, unknown> = {}): Promise<SolariumInitializeResult> {
     return this.call<SolariumInitializeResult>("initialize", params);
+  }
+
+  initialized(): void {
+    this.notify("notifications/initialized", {});
   }
 
   async ping(): Promise<unknown> {

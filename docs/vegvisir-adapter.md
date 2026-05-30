@@ -19,7 +19,12 @@ const solarium = launchSolariumServer({
 });
 
 try {
-  const init = await solarium.client.initialize();
+  const init = await solarium.client.initialize({
+    protocolVersion: "2024-11-05",
+    clientInfo: { name: "vegvisir", version: "local" },
+    capabilities: {}
+  });
+  solarium.client.initialized();
   const tools = await solarium.client.listTools();
 
   const result = await solarium.client.callTool("solarium.scopeCheck", {
@@ -61,6 +66,7 @@ const client = createSolariumJsonRpcClient({
 });
 
 await client.initialize();
+client.initialized();
 const browse = await client.callTool("solarium.browse", {
   url: "https://example.com",
   observe: true,
@@ -96,7 +102,7 @@ const result = await client.callSolariumTool("solarium.inspect", {
 });
 ```
 
-`callTool` returns the MCP-style wrapper with `content` and `structuredContent`.
+`callTool` returns the MCP-style wrapper with `content`, `isError`, and `structuredContent`.
 `callSolariumTool` returns the direct JSON-RPC result.
 
 ## Recommended Vegvisir tool mapping
@@ -143,6 +149,7 @@ const solarium = launchSolariumServer({
 
 try {
   console.log(await solarium.client.initialize());
+  solarium.client.initialized();
   console.log((await solarium.client.listTools()).map((tool) => tool.name));
   console.log(await solarium.client.callSolariumTool('solarium.scopeCheck', {
     url: 'https://example.com',

@@ -53,6 +53,9 @@ interface ToolDefinition {
 
 const SERVER_NAME = "solarium";
 const SERVER_VERSION = "0.1.0";
+const DEFAULT_PROTOCOL_VERSION = "2024-11-05";
+const SERVER_INSTRUCTIONS =
+  "Solarium provides scoped browser automation tools for authorized browsing, inspection, sessions, crawling, audits, evidence manifests, and validation. Prefer explicit scope policies for browser-affecting tools; never pass plaintext secrets in tool arguments.";
 
 const tools: ToolDefinition[] = [
   {
@@ -239,12 +242,18 @@ export async function handleJsonRpcRequest(request: JsonRpcRequest, options: Jso
   }
 
   switch (request.method) {
-    case "initialize":
+    case "initialize": {
+      const params = request.params === undefined ? {} : expectObject(request.params, "params");
+      const requestedProtocolVersion = typeof params.protocolVersion === "string" ? params.protocolVersion : DEFAULT_PROTOCOL_VERSION;
       return {
-        protocolVersion: "2024-11-05",
+        protocolVersion: requestedProtocolVersion,
         serverInfo: { name: options.name ?? SERVER_NAME, version: options.version ?? SERVER_VERSION },
-        capabilities: { tools: {} }
+        capabilities: { tools: { listChanged: false } },
+        instructions: SERVER_INSTRUCTIONS
       };
+    }
+    case "notifications/initialized":
+      return {};
     case "ping":
       return {};
     case "tools/list":
@@ -254,10 +263,7 @@ export async function handleJsonRpcRequest(request: JsonRpcRequest, options: Jso
       const name = requireString(params.name, "params.name");
       const args = params.arguments === undefined ? {} : expectObject(params.arguments, "params.arguments");
       const result = await callTool(name, args);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        structuredContent: result
-      };
+      return toolResult(result);
     }
     default: {
       if (request.method.startsWith("solarium.")) {
@@ -374,6 +380,14 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
     default:
       throw rpcError(-32601, `Unknown tool: ${name}`);
   }
+}
+
+function toolResult(result: unknown): Record<string, unknown> {
+  return {
+    content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    structuredContent: result,
+    isError: false
+  };
 }
 
 function paramsAsArgs(params: unknown): Record<string, unknown> {

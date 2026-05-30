@@ -8,27 +8,68 @@ Start the server:
 npm run dev -- server
 # or, after build:
 node dist/cli/index.js server
+# or, after package install:
+solarium server
 ```
 
-Each request is one JSON object per line. Each response is one JSON object per line. The server supports basic MCP-style methods:
+Each request is one JSON object per line. Each response is one JSON object per line. The server supports MCP-style lifecycle and tool methods:
 
 - `initialize`
+- `notifications/initialized`
 - `ping`
 - `tools/list`
 - `tools/call`
 
 It also supports direct JSON-RPC calls where the method is a Solarium tool name, such as `solarium.browse`.
 
-## Initialize
+## MCP client configuration
+
+For MCP clients that support stdio servers, the command shape is:
 
 ```json
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+{
+  "mcpServers": {
+    "solarium": {
+      "command": "solarium",
+      "args": ["server"]
+    }
+  }
+}
+```
+
+For local repository development without an installed package:
+
+```json
+{
+  "mcpServers": {
+    "solarium": {
+      "command": "node",
+      "args": ["/absolute/path/to/Solarium/dist/cli/index.js", "server"]
+    }
+  }
+}
+```
+
+Run `npm run build` first when using the `dist` path.
+
+## Initialize
+
+Request:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","clientInfo":{"name":"example-agent","version":"0.1.0"},"capabilities":{}}}
 ```
 
 Response:
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"solarium","version":"0.1.0"},"capabilities":{"tools":{}}}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"solarium","version":"0.1.0"},"capabilities":{"tools":{"listChanged":false}},"instructions":"Solarium provides scoped browser automation tools for authorized browsing, inspection, sessions, crawling, audits, evidence manifests, and validation. Prefer explicit scope policies for browser-affecting tools; never pass plaintext secrets in tool arguments."}}
+```
+
+After initialization, MCP clients may send:
+
+```json
+{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
 ```
 
 ## List tools
@@ -40,10 +81,10 @@ Response:
 ## Call a tool MCP-style
 
 ```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"solarium.browse","arguments":{"url":"https://example.com","observe":true,"headless":true}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"solarium.browse","arguments":{"url":"https://example.com","observe":true,"headless":true,"scope":{"allowedHosts":["example.com"],"authorizationNote":"Authorized example"}}}}
 ```
 
-`tools/call` returns both MCP-style text content and `structuredContent` containing the raw Solarium result.
+`tools/call` returns MCP-style `content`, `isError`, and `structuredContent` containing the raw Solarium result.
 
 ## Call a tool directly
 
@@ -67,12 +108,19 @@ Response:
 - `solarium.replay` — summarize a JSONL event timeline from disk.
 - `solarium.manifest` — create a SHA-256 artifact manifest.
 
+## Error behavior
+
+Malformed JSON returns JSON-RPC parse error `-32700`.
+Invalid requests return `-32600`.
+Unknown methods/tools return `-32601`.
+Invalid parameters return `-32602` where Solarium can classify the issue.
+Unexpected tool failures return `-32603`.
+
 ## Security boundary
 
 External agents should pass explicit `scope` objects for security-sensitive browsing, crawling, auditing, and loop runs. `solarium.crawl` requires scope. Storage state files, downloads, screenshots, and traces can contain sensitive local artifacts; keep generated paths under an agent-controlled evidence directory and out of source control.
 
 The server uses stdio only. It does not open a network listener.
-
 
 ## TypeScript client / Vegvisir adapter
 

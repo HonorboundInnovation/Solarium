@@ -12,6 +12,11 @@ test("handleJsonRpcRequest initializes and lists Solarium tools", async () => {
   const init = await handleJsonRpcRequest({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
   assert.equal(init.serverInfo.name, "solarium");
   assert.equal(init.capabilities.tools instanceof Object, true);
+  assert.equal(init.capabilities.tools.listChanged, false);
+  assert.match(init.instructions, /scoped browser automation/);
+
+  const initialized = await handleJsonRpcRequest({ jsonrpc: "2.0", method: "notifications/initialized", params: {} });
+  assert.deepEqual(initialized, {});
 
   const listed = await handleJsonRpcRequest({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   const names = listed.tools.map((tool) => tool.name);
@@ -36,6 +41,7 @@ test("handleJsonRpcRequest supports MCP-style tools/call", async () => {
 
   assert.equal(result.structuredContent.allowed, true);
   assert.equal(result.content[0].type, "text");
+  assert.equal(result.isError, false);
 });
 
 test("handleJsonRpcRequest supports direct solarium.* methods", async () => {
@@ -108,8 +114,9 @@ test("launchSolariumServer can initialize, list tools, and call scopeCheck", asy
   });
 
   try {
-    const init = await launched.client.initialize();
+    const init = await launched.client.initialize({ protocolVersion: "2024-11-05", clientInfo: { name: "test", version: "0" }, capabilities: {} });
     assert.equal(init.serverInfo.name, "solarium");
+    launched.client.initialized();
 
     const tools = await launched.client.listTools();
     assert.ok(tools.length >= 10);
