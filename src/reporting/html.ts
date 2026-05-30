@@ -26,6 +26,13 @@ export function renderOwaspAuditHtmlReport(result: OwaspAuditResult, options: Ht
     body.push(`<table><thead><tr><th>OWASP category</th><th>Findings</th><th>High</th><th>Medium</th><th>Low</th><th>Info</th></tr></thead><tbody>${result.owaspSummary.map((entry) => `<tr><td>${h(entry.category)}</td><td>${entry.count}</td><td>${entry.severities.high}</td><td>${entry.severities.medium}</td><td>${entry.severities.low}</td><td>${entry.severities.info}</td></tr>`).join("")}</tbody></table>`);
   }
 
+  if (result.top10Summary?.length) {
+    body.push(`<h2>OWASP Top 10 Scanner Coverage</h2>`);
+    body.push(`<table><thead><tr><th>Category</th><th>Status</th><th>Findings</th><th>Highest severity</th><th>Automated checks</th></tr></thead><tbody>${result.top10Summary.map((entry) => `<tr><td>${h(`${entry.id} ${entry.name}`)}</td><td>${h(entry.status)}</td><td>${entry.findingCount}</td><td>${h(entry.highestSeverity ?? "none")}</td><td>${h(entry.automatedChecks.join(", "))}</td></tr>`).join("")}</tbody></table>`);
+    const limitations = result.top10Summary.filter((entry) => entry.limitations);
+    if (limitations.length) body.push(`<h3>Top 10 limitations</h3><ul>${limitations.map((entry) => `<li><strong>${h(`${entry.id} ${entry.name}`)}:</strong> ${h(entry.limitations ?? "")}</li>`).join("")}</ul>`);
+  }
+
   appendNetworkPolicy(body, result.networkPolicy);
 
   body.push(`<h2>Findings</h2>`);

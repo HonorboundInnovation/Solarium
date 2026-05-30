@@ -314,7 +314,7 @@ program
   .description("Run a passive OWASP-mapped browser audit for an authorized page")
   .argument("<url>", "URL to audit")
   .option("--scope <path>", "Path to a JSON scope policy file")
-  .option("--profile <profile>", "OWASP audit profile: passive, strict-headers, or active-authorized", "passive")
+  .option("--profile <profile>", "OWASP audit profile: passive, strict-headers, active-authorized, top10-passive, or top10-active-authorized", "passive")
   .option("-o, --output <path>", "Write the OWASP audit result JSON to a file")
   .option("--report <path>", "Write a Markdown OWASP audit report to a file")
   .option("--html-report <path>", "Write an HTML OWASP audit report to a file")
@@ -902,7 +902,7 @@ program.parseAsync();
 
 function parseOwaspProfile(value?: string): OwaspAuditProfile {
   const profile = value ?? "passive";
-  if (profile !== "passive" && profile !== "strict-headers" && profile !== "active-authorized") {
+  if (profile !== "passive" && profile !== "strict-headers" && profile !== "active-authorized" && profile !== "top10-passive" && profile !== "top10-active-authorized") {
     throw new Error(`Unsupported OWASP audit profile: ${profile}`);
   }
   return profile;

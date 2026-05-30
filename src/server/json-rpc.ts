@@ -178,7 +178,7 @@ const tools: ToolDefinition[] = [
     inputSchema: objectSchema({
       url: { type: "string" },
       scope: scopeSchema(),
-      owaspProfile: { type: "string", enum: ["passive", "strict-headers", "active-authorized"], default: "passive" },
+      owaspProfile: { type: "string", enum: ["passive", "strict-headers", "active-authorized", "top10-passive", "top10-active-authorized", "top10-passive", "top10-active-authorized"], default: "passive" },
       maxActiveRequests: { type: "number", minimum: 0, maximum: 25 },
       activeDelayMs: { type: "number", minimum: 0 },
       activeRequestTimeoutMs: { type: "number", minimum: 1000 },
@@ -601,10 +601,10 @@ function optionalEngine(value: unknown): BrowserEngine | undefined {
   return value as BrowserEngine;
 }
 
-function optionalOwaspProfile(value: unknown): "passive" | "strict-headers" | "active-authorized" | undefined {
+function optionalOwaspProfile(value: unknown): "passive" | "strict-headers" | "active-authorized" | "top10-passive" | "top10-active-authorized" | undefined {
   if (value === undefined || value === null) return undefined;
   const profile = requireString(value, "owaspProfile");
-  if (profile !== "passive" && profile !== "strict-headers" && profile !== "active-authorized") throw rpcError(-32602, "owaspProfile must be passive, strict-headers, or active-authorized");
+  if (profile !== "passive" && profile !== "strict-headers" && profile !== "active-authorized" && profile !== "top10-passive" && profile !== "top10-active-authorized") throw rpcError(-32602, "owaspProfile must be passive, strict-headers, active-authorized, top10-passive, or top10-active-authorized");
   return profile;
 }
 

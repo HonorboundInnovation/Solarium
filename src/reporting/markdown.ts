@@ -57,6 +57,24 @@ export function renderOwaspAuditMarkdownReport(result: OwaspAuditResult, options
   }
   lines.push("");
 
+  if (result.top10Summary?.length) {
+    lines.push("## OWASP Top 10 Scanner Coverage");
+    lines.push("");
+    lines.push("| Category | Status | Findings | Highest severity | Automated checks |");
+    lines.push("| --- | --- | ---: | --- | --- |");
+    for (const row of result.top10Summary) {
+      lines.push(`| ${escapeMarkdown(`${row.id} ${row.name}`)} | ${row.status} | ${row.findingCount} | ${row.highestSeverity ?? "none"} | ${row.automatedChecks.map(escapeMarkdown).join(", ")} |`);
+    }
+    lines.push("");
+    const limitations = result.top10Summary.filter((row) => row.limitations);
+    if (limitations.length) {
+      lines.push("### Top 10 limitations");
+      lines.push("");
+      for (const row of limitations) lines.push(`- **${escapeMarkdown(`${row.id} ${row.name}`)}:** ${escapeMarkdown(row.limitations ?? "")}`);
+      lines.push("");
+    }
+  }
+
   appendNetworkPolicy(lines, result.networkPolicy);
 
   lines.push("## Findings");

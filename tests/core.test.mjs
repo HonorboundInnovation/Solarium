@@ -227,6 +227,9 @@ test("OWASP audit reports render mapped findings", () => {
     owaspSummary: [
       { category: "A05:2021-Security Misconfiguration", count: 1, severities: { info: 0, low: 0, medium: 1, high: 0 } }
     ],
+    top10Summary: [
+      { id: "A05:2021", name: "Security Misconfiguration", findingCount: 1, highestSeverity: "medium", status: "finding", automatedChecks: ["security headers"] }
+    ],
     baseAudit: {
       url: "https://example.com",
       finalUrl: "https://example.com/",
@@ -244,6 +247,7 @@ test("OWASP audit reports render mapped findings", () => {
   const html = renderOwaspAuditHtmlReport(result);
   assert.match(markdown, /Solarium OWASP Passive Audit Report/);
   assert.match(markdown, /A05:2021-Security Misconfiguration/);
+  assert.match(markdown, /OWASP Top 10 Scanner Coverage/);
   assert.match(html, /<!doctype html>/);
   assert.match(html, /OWASP Summary/);
 });
@@ -312,4 +316,74 @@ test("OWASP active-authorized report rendering labels active profile", () => {
   assert.match(markdown, /active-authorized/);
   assert.match(markdown, /Active-authorized probes completed/);
   assert.match(html, /active-authorized/);
+});
+
+
+test("OWASP Top 10 active-authorized profile requires explicit authorized scope", async () => {
+  await assert.rejects(
+    () => owaspAudit({ url: "https://example.com", owaspProfile: "top10-active-authorized" }),
+    /requires a scope policy with allowedHosts/
+  );
+});
+
+test("OWASP Top 10 report rendering includes category coverage", () => {
+  const result = {
+    schemaVersion: "solarium.owasp-audit.v1",
+    standard: "OWASP",
+    profile: "top10-passive",
+    url: "https://example.com",
+    finalUrl: "https://example.com/",
+    title: "Example",
+    startedAt: "2025-01-01T00:00:00.000Z",
+    finishedAt: "2025-01-01T00:00:01.000Z",
+    ok: true,
+    checks: ["owasp-top10-category-coverage"],
+    findings: [
+      {
+        id: "owasp-top10-broken-access-control-review",
+        category: "access-control",
+        severity: "info",
+        title: "Broken access control requires role/object authorization review",
+        description: "Manual review item.",
+        recommendation: "Review authorization boundaries.",
+        evidence: { automatedStatus: "manual-review-required" },
+        standard: "OWASP",
+        owasp: { top10: "A01:2021-Broken Access Control", asvs: ["Manual review"] }
+      }
+    ],
+    summary: { info: 1, low: 0, medium: 0, high: 0 },
+    owaspSummary: [
+      { category: "A01:2021-Broken Access Control", count: 1, severities: { info: 1, low: 0, medium: 0, high: 0 } }
+    ],
+    top10Summary: [
+      {
+        id: "A01:2021",
+        name: "Broken Access Control",
+        findingCount: 1,
+        highestSeverity: "info",
+        status: "manual-review",
+        automatedChecks: ["scope enforcement"],
+        limitations: "Requires authenticated roles."
+      }
+    ],
+    baseAudit: {
+      url: "https://example.com",
+      finalUrl: "https://example.com/",
+      title: "Example",
+      startedAt: "2025-01-01T00:00:00.000Z",
+      finishedAt: "2025-01-01T00:00:01.000Z",
+      ok: true,
+      findings: [],
+      summary: { info: 0, low: 0, medium: 0, high: 0 }
+    },
+    networkPolicy: { allowedRequests: 1, blockedRequests: 0, rateLimitedRequests: 0 }
+  };
+
+  const markdown = renderOwaspAuditMarkdownReport(result);
+  const html = renderOwaspAuditHtmlReport(result);
+  assert.match(markdown, /OWASP Top 10 Scanner Coverage/);
+  assert.match(markdown, /A01:2021 Broken Access Control/);
+  assert.match(markdown, /Top 10 limitations/);
+  assert.match(html, /OWASP Top 10 Scanner Coverage/);
+  assert.match(html, /manual-review/);
 });

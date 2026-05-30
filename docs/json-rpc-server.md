@@ -101,7 +101,7 @@ After initialization, MCP clients may send:
 - `solarium.loop` — run a bounded inspect-plan-act loop.
 - `solarium.crawl` — crawl in-scope pages; requires a scope policy.
 - `solarium.audit` — passive defensive audit of an authorized page.
-- `solarium.owaspAudit` — passive OWASP-mapped browser audit for an authorized page.
+- `solarium.owaspAudit` — OWASP-mapped browser audit and Top 10 scanner for an authorized page. Profiles: `passive`, `strict-headers`, `active-authorized`, `top10-passive`, `top10-active-authorized`.
 - `solarium.graphqlAudit` — bounded non-DoS GraphQL endpoint/schema audit for an authorized target.
 - `solarium.scopeCheck` — check a URL against a scope policy.
 - `solarium.validate` — validate job/scope/actions JSON.

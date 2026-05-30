@@ -375,7 +375,14 @@ export type AuditCategory =
   | "well-known"
   | "sensitive-file"
   | "methods"
-  | "active-probe";
+  | "active-probe"
+  | "injection-surface"
+  | "authentication-surface"
+  | "component-inventory"
+  | "logging-monitoring"
+  | "access-control"
+  | "design-review"
+  | "ssrf";
 
 export interface AuditFinding {
   id: string;

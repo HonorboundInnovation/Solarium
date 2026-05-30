@@ -2,14 +2,24 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { audit } from "./audit.js";
 import { assertUrlInScope, type ScopePolicy } from "./scope.js";
-import type { AuditFinding, AuditOptions, AuditSeverity, NetworkObservation } from "../types.js";
+import type { AuditFinding, AuditOptions, AuditSeverity, NetworkObservation, PageObservation } from "../types.js";
 
-export type OwaspAuditProfile = "passive" | "strict-headers" | "active-authorized";
+export type OwaspAuditProfile = "passive" | "strict-headers" | "active-authorized" | "top10-passive" | "top10-active-authorized";
 
 export interface OwaspCategorySummary {
   category: string;
   count: number;
   severities: Record<AuditSeverity, number>;
+}
+
+export interface OwaspTop10CategorySummary {
+  id: string;
+  name: string;
+  findingCount: number;
+  highestSeverity?: AuditSeverity;
+  status: "finding" | "checked-no-findings" | "manual-review" | "not-automated";
+  automatedChecks: string[];
+  limitations?: string;
 }
 
 export interface OwaspAuditResult {
@@ -26,6 +36,7 @@ export interface OwaspAuditResult {
   findings: AuditFinding[];
   summary: Record<AuditSeverity, number>;
   owaspSummary: OwaspCategorySummary[];
+  top10Summary?: OwaspTop10CategorySummary[];
   baseAudit: Omit<Awaited<ReturnType<typeof audit>>, "observation">;
   networkPolicy?: Awaited<ReturnType<typeof audit>>["networkPolicy"];
   error?: string;
@@ -40,6 +51,19 @@ export interface OwaspAuditOptions extends AuditOptions {
   /** Timeout for each active-authorized probe. Defaults to 10s. */
   activeRequestTimeoutMs?: number;
 }
+
+const OWASP_TOP10_2021 = [
+  { id: "A01:2021", name: "Broken Access Control", automatedChecks: ["scope enforcement", "GraphQL access-control indicators when GraphQL audit is used"], limitations: "Access-control verification usually requires authenticated roles, object IDs, and app-specific authorization expectations." },
+  { id: "A02:2021", name: "Cryptographic Failures", automatedChecks: ["HTTPS usage", "mixed content", "cookie Secure/SameSite transport indicators"] },
+  { id: "A03:2021", name: "Injection", automatedChecks: ["form/input surface inventory", "GraphQL operation inventory when GraphQL audit is used"], limitations: "Solarium does not inject payloads in passive mode; exploit validation requires explicit app-specific authorization." },
+  { id: "A04:2021", name: "Insecure Design", automatedChecks: ["design-review reminder", "security.txt discovery in active-authorized mode"], limitations: "Insecure design cannot be proven by generic browser checks alone; it needs threat modeling and business-flow review." },
+  { id: "A05:2021", name: "Security Misconfiguration", automatedChecks: ["security headers", "clickjacking controls", "source-map signals", "well-known/sensitive-file probes in active-authorized mode"] },
+  { id: "A06:2021", name: "Vulnerable and Outdated Components", automatedChecks: ["third-party script inventory", "client component/version exposure signals"], limitations: "Version-to-CVE matching is not yet implemented; current checks inventory exposed client-side components." },
+  { id: "A07:2021", name: "Identification and Authentication Failures", automatedChecks: ["password/login form inventory", "cookie HttpOnly/SameSite/Secure indicators"] },
+  { id: "A08:2021", name: "Software and Data Integrity Failures", automatedChecks: ["third-party script inventory", "source-map exposure signals", "supply-chain browser evidence"] },
+  { id: "A09:2021", name: "Security Logging and Monitoring Failures", automatedChecks: ["client-side console/error evidence", "failed resource evidence"], limitations: "Server-side logging and alerting cannot be confirmed from a public browser session." },
+  { id: "A10:2021", name: "Server-Side Request Forgery", automatedChecks: ["SSRF surface reminder"], limitations: "Solarium does not perform SSRF payload probes in this scanner. SSRF testing requires explicit endpoint knowledge and strict authorization." }
+] as const;
 
 const PASSIVE_CHECKS = [
   "security-headers",
@@ -58,8 +82,25 @@ const STRICT_HEADER_CHECKS = [
   "strict-cross-origin-isolation-headers"
 ];
 
+const TOP10_PASSIVE_CHECKS = [
+  ...STRICT_HEADER_CHECKS,
+  "owasp-top10-category-coverage",
+  "injection-surface-inventory",
+  "authentication-surface-inventory",
+  "client-component-inventory",
+  "logging-monitoring-browser-evidence",
+  "manual-review-category-markers"
+];
+
 const ACTIVE_AUTHORIZED_CHECKS = [
   ...STRICT_HEADER_CHECKS,
+  "authorized-well-known-file-probes",
+  "authorized-sensitive-file-exposure-probes",
+  "authorized-http-options-probe"
+];
+
+const TOP10_ACTIVE_AUTHORIZED_CHECKS = [
+  ...TOP10_PASSIVE_CHECKS,
   "authorized-well-known-file-probes",
   "authorized-sensitive-file-exposure-probes",
   "authorized-http-options-probe"
@@ -82,9 +123,9 @@ const SENSITIVE_FILE_PROBES = [
 export async function owaspAudit(options: OwaspAuditOptions): Promise<OwaspAuditResult> {
   const profile = options.owaspProfile ?? "passive";
   const startedAt = new Date().toISOString();
-  const checks = profile === "active-authorized" ? ACTIVE_AUTHORIZED_CHECKS : profile === "strict-headers" ? STRICT_HEADER_CHECKS : PASSIVE_CHECKS;
+  const checks = checksForProfile(profile);
 
-  if (profile === "active-authorized") {
+  if (isActiveProfile(profile)) {
     assertActiveAuthorized(options.url, options.scope);
   }
 
@@ -94,15 +135,18 @@ export async function owaspAudit(options: OwaspAuditOptions): Promise<OwaspAudit
     outputPath: undefined
   });
 
+  const observation = base.observation;
   const findings: AuditFinding[] = [
     ...base.findings.map(enrichBaseFinding),
-    ...extraPassiveFindings(base.finalUrl ?? options.url, base.observation?.network ?? [], profile)
+    ...extraPassiveFindings(base.finalUrl ?? options.url, observation?.network ?? [], profile),
+    ...top10ScannerFindings(base.finalUrl ?? options.url, observation, profile)
   ];
 
-  if (profile === "active-authorized") {
+  if (isActiveProfile(profile)) {
     findings.push(...await activeAuthorizedFindings(base.finalUrl ?? options.url, options));
   }
 
+  const sortedFindings = sortFindings(findings);
   const result: OwaspAuditResult = {
     schemaVersion: "solarium.owasp-audit.v1",
     standard: "OWASP",
@@ -114,9 +158,10 @@ export async function owaspAudit(options: OwaspAuditOptions): Promise<OwaspAudit
     finishedAt: new Date().toISOString(),
     ok: base.ok,
     checks,
-    findings: sortFindings(findings),
-    summary: summarize(findings),
-    owaspSummary: summarizeOwasp(findings),
+    findings: sortedFindings,
+    summary: summarize(sortedFindings),
+    owaspSummary: summarizeOwasp(sortedFindings),
+    top10Summary: isTop10Profile(profile) ? summarizeTop10(sortedFindings) : undefined,
     baseAudit: stripObservation(base),
     networkPolicy: base.networkPolicy,
     error: base.error
@@ -128,6 +173,30 @@ export async function owaspAudit(options: OwaspAuditOptions): Promise<OwaspAudit
   }
 
   return result;
+}
+
+function checksForProfile(profile: OwaspAuditProfile): string[] {
+  switch (profile) {
+    case "active-authorized":
+      return ACTIVE_AUTHORIZED_CHECKS;
+    case "top10-passive":
+      return TOP10_PASSIVE_CHECKS;
+    case "top10-active-authorized":
+      return TOP10_ACTIVE_AUTHORIZED_CHECKS;
+    case "strict-headers":
+      return STRICT_HEADER_CHECKS;
+    case "passive":
+    default:
+      return PASSIVE_CHECKS;
+  }
+}
+
+function isTop10Profile(profile: OwaspAuditProfile): boolean {
+  return profile === "top10-passive" || profile === "top10-active-authorized";
+}
+
+function isActiveProfile(profile: OwaspAuditProfile): boolean {
+  return profile === "active-authorized" || profile === "top10-active-authorized";
 }
 
 function enrichBaseFinding(finding: AuditFinding): AuditFinding {
@@ -202,11 +271,102 @@ function extraPassiveFindings(finalUrl: string, network: NetworkObservation[], p
     });
   }
 
-  if (profile === "strict-headers") {
+  if (profile === "strict-headers" || isTop10Profile(profile)) {
     findings.push(...strictHeaderAdvisories(network));
   }
 
   return findings;
+}
+
+function top10ScannerFindings(finalUrl: string, observation: PageObservation | undefined, profile: OwaspAuditProfile): AuditFinding[] {
+  if (!isTop10Profile(profile)) return [];
+  const findings: AuditFinding[] = [];
+  const forms = observation?.forms ?? [];
+  const inputs = observation?.inputs ?? [];
+  const network = observation?.network ?? [];
+  const consoleEvents = observation?.console ?? [];
+  const passwordForms = forms.filter((form) => form.fields.some((field) => field.type === "password"));
+  const inputSurfaceCount = inputs.length + forms.reduce((count, form) => count + form.fields.length, 0);
+  const thirdPartyScripts = thirdPartyScriptHosts(finalUrl, network);
+
+  if (inputSurfaceCount > 0) {
+    findings.push({
+      id: "owasp-top10-injection-surface-inventory",
+      category: "injection-surface",
+      severity: "info",
+      title: "Input surfaces observed for injection review",
+      description: "The page exposes forms or input fields. These are relevant to OWASP injection review, but this Top 10 scanner does not inject payloads in passive mode.",
+      recommendation: "Validate server-side input handling, parameterized database access, output encoding, and parser boundaries for each input surface.",
+      evidence: { forms: forms.length, pageInputs: inputs.length, totalObservedInputFields: inputSurfaceCount },
+      standard: "OWASP",
+      owasp: { top10: "A03:2021-Injection", asvs: ["V5 Validation", "V10 Malicious Code"] }
+    });
+  }
+
+  if (passwordForms.length > 0) {
+    findings.push({
+      id: "owasp-top10-authentication-surface-inventory",
+      category: "authentication-surface",
+      severity: "info",
+      title: "Authentication surface observed",
+      description: "The browser observed password fields or login-like forms. These are relevant to OWASP authentication review.",
+      recommendation: "Verify MFA/session policy, lockout/rate limits, password reset flows, secure cookies, and credential handling in an authorized authenticated assessment.",
+      evidence: { passwordForms: passwordForms.length },
+      standard: "OWASP",
+      owasp: { top10: "A07:2021-Identification and Authentication Failures", asvs: ["V2 Authentication", "V3 Session Management"] }
+    });
+  }
+
+  if (thirdPartyScripts.length > 0) {
+    findings.push({
+      id: "owasp-top10-client-component-inventory",
+      category: "component-inventory",
+      severity: "info",
+      title: "Client-side component inventory available for vulnerability review",
+      description: "The page loads third-party client-side scripts. Solarium inventories these components, but version-to-CVE matching is not yet implemented.",
+      recommendation: "Review client libraries and third-party script providers for supported versions, integrity controls, and known vulnerabilities.",
+      evidence: { thirdPartyScriptHosts: thirdPartyScripts.slice(0, 25), count: thirdPartyScripts.length },
+      standard: "OWASP",
+      owasp: { top10: "A06:2021-Vulnerable and Outdated Components", asvs: ["V14 Configuration"] }
+    });
+  }
+
+  const errors = consoleEvents.filter((event) => ["error", "warning"].includes(event.type.toLowerCase()));
+  if (errors.length > 0) {
+    findings.push({
+      id: "owasp-top10-client-error-evidence",
+      category: "logging-monitoring",
+      severity: "low",
+      title: "Client-side errors observed during audit",
+      description: "Browser console errors or warnings were observed. These may indicate broken client behavior and should be correlated with server-side logging and monitoring.",
+      recommendation: "Review client and server logs for correlated errors, ensure security-relevant events are logged, and configure alerting for anomalous failures.",
+      evidence: { count: errors.length, samples: errors.slice(0, 10) },
+      standard: "OWASP",
+      owasp: { top10: "A09:2021-Security Logging and Monitoring Failures", asvs: ["V7 Error Handling and Logging"] }
+    });
+  }
+
+  findings.push(
+    manualReviewFinding("owasp-top10-broken-access-control-review", "access-control", "Broken access control requires role/object authorization review", "A01:2021-Broken Access Control", "Verify authorization boundaries with multiple authenticated roles, object IDs, tenant boundaries, and direct object access attempts in an explicitly authorized workflow."),
+    manualReviewFinding("owasp-top10-insecure-design-review", "design-review", "Insecure design requires threat-model review", "A04:2021-Insecure Design", "Review business logic, abuse cases, trust boundaries, rate limits, and secure-by-design controls with application context."),
+    manualReviewFinding("owasp-top10-ssrf-review", "ssrf", "SSRF requires app-specific endpoint review", "A10:2021-Server-Side Request Forgery", "Identify server-side URL fetch/import/webhook features and test them only with explicit authorization and safe callbacks.")
+  );
+
+  return findings;
+}
+
+function manualReviewFinding(id: string, category: AuditFinding["category"], title: string, top10: string, recommendation: string): AuditFinding {
+  return {
+    id,
+    category,
+    severity: "info",
+    title,
+    description: "This OWASP Top 10 category cannot be fully verified by generic passive browser observation. Solarium records it as an explicit review item instead of pretending full coverage.",
+    recommendation,
+    evidence: { automatedStatus: "manual-review-required" },
+    standard: "OWASP",
+    owasp: { top10, asvs: ["Manual review"] }
+  };
 }
 
 function strictHeaderAdvisories(_network: NetworkObservation[]): AuditFinding[] {
@@ -368,11 +528,30 @@ function mapFindingToOwasp(finding: AuditFinding): { top10: string; asvs: string
       return { top10: "A02:2021-Cryptographic Failures", asvs: ["V5 Validation", "V9 Communications"] };
     case "graphql":
       return { top10: "A01:2021-Broken Access Control", asvs: ["V4 Access Control", "V5 Validation"] };
+    case "transport":
+      return { top10: "A02:2021-Cryptographic Failures", asvs: ["V9 Communications"] };
+    case "injection-surface":
+      return { top10: "A03:2021-Injection", asvs: ["V5 Validation"] };
+    case "authentication-surface":
+      return { top10: "A07:2021-Identification and Authentication Failures", asvs: ["V2 Authentication", "V3 Session Management"] };
+    case "component-inventory":
+      return { top10: "A06:2021-Vulnerable and Outdated Components", asvs: ["V14 Configuration"] };
+    case "logging-monitoring":
+      return { top10: "A09:2021-Security Logging and Monitoring Failures", asvs: ["V7 Error Handling and Logging"] };
+    case "supply-chain":
+      return { top10: "A08:2021-Software and Data Integrity Failures", asvs: ["V14 Configuration"] };
+    case "client-exposure":
     case "well-known":
     case "sensitive-file":
     case "methods":
     case "active-probe":
       return { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] };
+    case "access-control":
+      return { top10: "A01:2021-Broken Access Control", asvs: ["V4 Access Control"] };
+    case "design-review":
+      return { top10: "A04:2021-Insecure Design", asvs: ["V1 Architecture"] };
+    case "ssrf":
+      return { top10: "A10:2021-Server-Side Request Forgery", asvs: ["V12 File and Resources"] };
     default:
       return { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] };
   }
@@ -413,6 +592,27 @@ function summarizeOwasp(findings: AuditFinding[]): OwaspCategorySummary[] {
     byCategory.set(top10, current);
   }
   return [...byCategory.values()].sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+}
+
+function summarizeTop10(findings: AuditFinding[]): OwaspTop10CategorySummary[] {
+  const rank: Record<AuditSeverity, number> = { high: 4, medium: 3, low: 2, info: 1 };
+  return OWASP_TOP10_2021.map((category) => {
+    const categoryFindings = findings.filter((finding) => finding.owasp?.top10.startsWith(category.id));
+    const highestSeverity = categoryFindings.reduce<AuditSeverity | undefined>((highest, finding) => {
+      if (!highest || rank[finding.severity] > rank[highest]) return finding.severity;
+      return highest;
+    }, undefined);
+    const onlyInfoManual = categoryFindings.length > 0 && categoryFindings.every((finding) => finding.severity === "info" && finding.evidence?.automatedStatus === "manual-review-required");
+    return {
+      id: category.id,
+      name: category.name,
+      findingCount: categoryFindings.length,
+      highestSeverity,
+      status: categoryFindings.length === 0 ? "checked-no-findings" : onlyInfoManual ? "manual-review" : "finding",
+      automatedChecks: [...category.automatedChecks],
+      limitations: "limitations" in category ? category.limitations : undefined
+    };
+  });
 }
 
 function sortFindings(findings: AuditFinding[]): AuditFinding[] {

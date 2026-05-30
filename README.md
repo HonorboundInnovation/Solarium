@@ -417,9 +417,9 @@ Current passive findings include:
 - insecure form actions
 - password forms on non-HTTPS pages
 
-## OWASP passive audit mode
+## OWASP audit and Top 10 scanner modes
 
-Solarium can run an OWASP-mapped passive browser audit that builds on the standard audit checks and groups findings by OWASP Top 10/ASVS context. It remains non-invasive: no fuzzing, brute force, exploitation, or form submission.
+Solarium can run OWASP-mapped browser audits that build on the standard audit checks and group findings by OWASP Top 10/ASVS context. Passive profiles remain non-invasive: no fuzzing, brute force, exploitation, or form submission. Active-authorized profiles require explicit scoped authorization and remain bounded.
 
 ```bash
 npm run dev -- owasp-audit https://example.com \
@@ -433,6 +433,33 @@ Profiles:
 
 - `passive` — default browser-observed OWASP mapping for headers, cookies, mixed content, forms, HTTPS usage, failed resources, third-party scripts, and source-map signals.
 - `strict-headers` — reserved stricter profile for deployments that want stronger header expectations as the audit pack grows.
+- `active-authorized` — adds a small fixed set of bounded, scoped metadata/sensitive-file/OPTIONS probes. Requires `scope.authorizationNote`.
+- `top10-passive` — emits an OWASP Top 10 coverage summary and category-specific findings/review items without active probing.
+- `top10-active-authorized` — combines Top 10 coverage reporting with the bounded active-authorized probe set. Requires `scope.authorizationNote`.
+
+Top 10 profiles cover all OWASP Top 10 categories in the report. Some categories are automatically checked from browser/network evidence, while categories such as broken access control, insecure design, and SSRF are marked as manual/app-specific review items rather than falsely claimed as fully verified.
+
+Example Top 10 passive scan:
+
+```bash
+npm run dev -- owasp-audit https://example.com \
+  --scope scope.json \
+  --profile top10-passive \
+  --output .solarium/top10-result.json \
+  --report .solarium/top10-report.md \
+  --html-report .solarium/top10-report.html
+```
+
+Example bounded active-authorized Top 10 scan:
+
+```bash
+npm run dev -- owasp-audit https://example.com \
+  --scope scope.json \
+  --profile top10-active-authorized \
+  --max-active-requests 10 \
+  --active-delay-ms 250 \
+  --output .solarium/top10-active-result.json
+```
 
 ## GraphQL audit mode
 
@@ -470,7 +497,7 @@ Current GraphQL findings include:
 
 `session`, `crawl`, `audit`, `owasp-audit`, and `graphql-audit` can write human-readable Markdown and HTML reports in addition to JSON results:
 
-`owasp-audit --profile active-authorized` is intentionally bounded: it requires a scope policy with an `authorizationNote`, caps extra probes, delays between probes, and does not perform DoS, brute force, credential attacks, high-rate fuzzing, exploitation, or destructive form submission.
+`owasp-audit --profile active-authorized` and `--profile top10-active-authorized` are intentionally bounded: it requires a scope policy with an `authorizationNote`, caps extra probes, delays between probes, and does not perform DoS, brute force, credential attacks, high-rate fuzzing, exploitation, or destructive form submission.
 
 ```bash
 npm run dev -- audit https://example.com \
