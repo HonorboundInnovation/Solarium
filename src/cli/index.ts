@@ -314,7 +314,7 @@ program
   .description("Run a passive OWASP-mapped browser audit for an authorized page")
   .argument("<url>", "URL to audit")
   .option("--scope <path>", "Path to a JSON scope policy file")
-  .option("--profile <profile>", "OWASP audit profile: passive or strict-headers", "passive")
+  .option("--profile <profile>", "OWASP audit profile: passive, strict-headers, or active-authorized", "passive")
   .option("-o, --output <path>", "Write the OWASP audit result JSON to a file")
   .option("--report <path>", "Write a Markdown OWASP audit report to a file")
   .option("--html-report <path>", "Write an HTML OWASP audit report to a file")
@@ -328,6 +328,9 @@ program
   .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
   .option("--headed", "Run with a visible browser window")
   .option("--wait-after-navigation-ms <number>", "Delay after navigation before observing", parseInteger)
+  .option("--max-active-requests <number>", "Maximum additional active-authorized probes; hard-capped at 25", parseInteger)
+  .option("--active-delay-ms <number>", "Delay between active-authorized probes", parseInteger)
+  .option("--active-request-timeout-ms <number>", "Timeout for each active-authorized probe", parseInteger)
   .option("--max-text-chars <number>", "Maximum observed visible-text characters", parseInteger)
   .option("--max-elements <number>", "Maximum links/buttons/inputs/forms to observe", parseInteger)
   .option("--trace", "Record a Playwright trace")
@@ -346,6 +349,9 @@ program
         saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
         downloadsDir: options.downloadsDir as string | undefined,
         waitAfterNavigationMs: options.waitAfterNavigationMs as number | undefined,
+        maxActiveRequests: options.maxActiveRequests as number | undefined,
+        activeDelayMs: options.activeDelayMs as number | undefined,
+        activeRequestTimeoutMs: options.activeRequestTimeoutMs as number | undefined,
         observationOptions: {
           maxTextChars: options.maxTextChars as number | undefined,
           maxElements: options.maxElements as number | undefined
@@ -896,7 +902,7 @@ program.parseAsync();
 
 function parseOwaspProfile(value?: string): OwaspAuditProfile {
   const profile = value ?? "passive";
-  if (profile !== "passive" && profile !== "strict-headers") {
+  if (profile !== "passive" && profile !== "strict-headers" && profile !== "active-authorized") {
     throw new Error(`Unsupported OWASP audit profile: ${profile}`);
   }
   return profile;

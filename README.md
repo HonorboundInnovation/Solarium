@@ -470,6 +470,8 @@ Current GraphQL findings include:
 
 `session`, `crawl`, `audit`, `owasp-audit`, and `graphql-audit` can write human-readable Markdown and HTML reports in addition to JSON results:
 
+`owasp-audit --profile active-authorized` is intentionally bounded: it requires a scope policy with an `authorizationNote`, caps extra probes, delays between probes, and does not perform DoS, brute force, credential attacks, high-rate fuzzing, exploitation, or destructive form submission.
+
 ```bash
 npm run dev -- audit https://example.com \
   --scope .solarium/scope.json \

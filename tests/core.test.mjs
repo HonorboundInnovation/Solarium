@@ -14,7 +14,8 @@ import {
   renderGraphqlAuditMarkdownReport,
   renderGraphqlAuditHtmlReport,
   renderOwaspAuditMarkdownReport,
-  renderOwaspAuditHtmlReport
+  renderOwaspAuditHtmlReport,
+  owaspAudit
 } from "../dist/index.js";
 
 test("hostMatches supports exact hosts case-insensitively", () => {
@@ -245,4 +246,70 @@ test("OWASP audit reports render mapped findings", () => {
   assert.match(markdown, /A05:2021-Security Misconfiguration/);
   assert.match(html, /<!doctype html>/);
   assert.match(html, /OWASP Summary/);
+});
+
+
+test("OWASP active-authorized requires explicit authorized scope", async () => {
+  await assert.rejects(
+    () => owaspAudit({ url: "https://example.com", owaspProfile: "active-authorized" }),
+    /requires a scope policy with allowedHosts/
+  );
+
+  await assert.rejects(
+    () => owaspAudit({
+      url: "https://example.com",
+      owaspProfile: "active-authorized",
+      scope: { allowedHosts: ["example.com"] }
+    }),
+    /requires scope\.authorizationNote/
+  );
+});
+
+test("OWASP active-authorized report rendering labels active profile", () => {
+  const result = {
+    schemaVersion: "solarium.owasp-audit.v1",
+    standard: "OWASP",
+    profile: "active-authorized",
+    url: "https://example.com",
+    finalUrl: "https://example.com/",
+    title: "Example",
+    startedAt: "2025-01-01T00:00:00.000Z",
+    finishedAt: "2025-01-01T00:00:01.000Z",
+    ok: true,
+    checks: ["authorized-sensitive-file-exposure-probes"],
+    findings: [
+      {
+        id: "owasp-active-authorized-run-summary",
+        category: "active-probe",
+        severity: "info",
+        title: "Active-authorized probes completed",
+        description: "Bounded fixed probe set completed.",
+        recommendation: "Keep runs scoped.",
+        evidence: { probesSent: 2, maxActiveRequests: 2 },
+        standard: "OWASP",
+        owasp: { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] }
+      }
+    ],
+    summary: { info: 1, low: 0, medium: 0, high: 0 },
+    owaspSummary: [
+      { category: "A05:2021-Security Misconfiguration", count: 1, severities: { info: 1, low: 0, medium: 0, high: 0 } }
+    ],
+    baseAudit: {
+      url: "https://example.com",
+      finalUrl: "https://example.com/",
+      title: "Example",
+      startedAt: "2025-01-01T00:00:00.000Z",
+      finishedAt: "2025-01-01T00:00:01.000Z",
+      ok: true,
+      findings: [],
+      summary: { info: 0, low: 0, medium: 0, high: 0 }
+    },
+    networkPolicy: { allowedRequests: 1, blockedRequests: 0, rateLimitedRequests: 0 }
+  };
+
+  const markdown = renderOwaspAuditMarkdownReport(result);
+  const html = renderOwaspAuditHtmlReport(result);
+  assert.match(markdown, /active-authorized/);
+  assert.match(markdown, /Active-authorized probes completed/);
+  assert.match(html, /active-authorized/);
 });

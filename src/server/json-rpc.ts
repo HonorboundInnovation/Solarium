@@ -178,7 +178,10 @@ const tools: ToolDefinition[] = [
     inputSchema: objectSchema({
       url: { type: "string" },
       scope: scopeSchema(),
-      owaspProfile: { type: "string", enum: ["passive", "strict-headers"], default: "passive" },
+      owaspProfile: { type: "string", enum: ["passive", "strict-headers", "active-authorized"], default: "passive" },
+      maxActiveRequests: { type: "number", minimum: 0, maximum: 25 },
+      activeDelayMs: { type: "number", minimum: 0 },
+      activeRequestTimeoutMs: { type: "number", minimum: 1000 },
       engine: engineSchema(),
       profile: profileSchema(),
       headless: { type: "boolean", default: true },
@@ -426,6 +429,9 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
         profile: optionalProfile(args.profile),
         headless: optionalBoolean(args.headless, true),
         outputPath: optionalString(args.outputPath),
+        maxActiveRequests: optionalNumber(args.maxActiveRequests),
+        activeDelayMs: optionalNumber(args.activeDelayMs),
+        activeRequestTimeoutMs: optionalNumber(args.activeRequestTimeoutMs),
         observationOptions: observationOptions(args)
       });
     case "solarium.graphqlAudit":
@@ -595,10 +601,10 @@ function optionalEngine(value: unknown): BrowserEngine | undefined {
   return value as BrowserEngine;
 }
 
-function optionalOwaspProfile(value: unknown): "passive" | "strict-headers" | undefined {
+function optionalOwaspProfile(value: unknown): "passive" | "strict-headers" | "active-authorized" | undefined {
   if (value === undefined || value === null) return undefined;
   const profile = requireString(value, "owaspProfile");
-  if (profile !== "passive" && profile !== "strict-headers") throw rpcError(-32602, "owaspProfile must be passive or strict-headers");
+  if (profile !== "passive" && profile !== "strict-headers" && profile !== "active-authorized") throw rpcError(-32602, "owaspProfile must be passive, strict-headers, or active-authorized");
   return profile;
 }
 

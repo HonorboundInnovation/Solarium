@@ -230,6 +230,9 @@ export async function runJob(job: SolariumJob, options: RunJobOptions = {}): Pro
         scope,
         owaspProfile: parseOwaspProfile(optionalString(opt.owaspProfile ?? opt.profileName)),
         outputPath: resolveOptionalPath(baseDir, optionalString(opt.outputPath)),
+        maxActiveRequests: optionalNumber(opt.maxActiveRequests),
+        activeDelayMs: optionalNumber(opt.activeDelayMs),
+        activeRequestTimeoutMs: optionalNumber(opt.activeRequestTimeoutMs),
         waitAfterNavigationMs: optionalNumber(opt.waitAfterNavigationMs),
         observationOptions: observationOptions(opt)
       });
@@ -428,8 +431,8 @@ async function writeTextFile(path: string, content: string): Promise<void> {
   await writeFile(path, content, "utf8");
 }
 
-function parseOwaspProfile(value?: string): "passive" | "strict-headers" | undefined {
+function parseOwaspProfile(value?: string): "passive" | "strict-headers" | "active-authorized" | undefined {
   if (value === undefined) return undefined;
-  if (value !== "passive" && value !== "strict-headers") throw new Error(`Unsupported OWASP audit profile: ${value}`);
+  if (value !== "passive" && value !== "strict-headers" && value !== "active-authorized") throw new Error(`Unsupported OWASP audit profile: ${value}`);
   return value;
 }

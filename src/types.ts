@@ -371,7 +371,11 @@ export type AuditCategory =
   | "transport"
   | "network"
   | "supply-chain"
-  | "client-exposure";
+  | "client-exposure"
+  | "well-known"
+  | "sensitive-file"
+  | "methods"
+  | "active-probe";
 
 export interface AuditFinding {
   id: string;

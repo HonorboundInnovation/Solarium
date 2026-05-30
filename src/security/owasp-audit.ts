@@ -1,9 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { audit } from "./audit.js";
+import { assertUrlInScope, type ScopePolicy } from "./scope.js";
 import type { AuditFinding, AuditOptions, AuditSeverity, NetworkObservation } from "../types.js";
 
-export type OwaspAuditProfile = "passive" | "strict-headers";
+export type OwaspAuditProfile = "passive" | "strict-headers" | "active-authorized";
 
 export interface OwaspCategorySummary {
   category: string;
@@ -32,6 +33,12 @@ export interface OwaspAuditResult {
 
 export interface OwaspAuditOptions extends AuditOptions {
   owaspProfile?: OwaspAuditProfile;
+  /** Maximum additional active-authorized HTTP probes. Defaults to 10; hard-capped at 25. */
+  maxActiveRequests?: number;
+  /** Delay between active-authorized probes. Defaults to 250ms. */
+  activeDelayMs?: number;
+  /** Timeout for each active-authorized probe. Defaults to 10s. */
+  activeRequestTimeoutMs?: number;
 }
 
 const PASSIVE_CHECKS = [
@@ -51,10 +58,35 @@ const STRICT_HEADER_CHECKS = [
   "strict-cross-origin-isolation-headers"
 ];
 
+const ACTIVE_AUTHORIZED_CHECKS = [
+  ...STRICT_HEADER_CHECKS,
+  "authorized-well-known-file-probes",
+  "authorized-sensitive-file-exposure-probes",
+  "authorized-http-options-probe"
+];
+
+const WELL_KNOWN_PROBES = [
+  { path: "/.well-known/security.txt", id: "well-known-security-txt", title: "security.txt discovered" },
+  { path: "/security.txt", id: "root-security-txt", title: "root security.txt discovered" },
+  { path: "/robots.txt", id: "robots-txt", title: "robots.txt discovered" },
+  { path: "/sitemap.xml", id: "sitemap-xml", title: "sitemap.xml discovered" }
+] as const;
+
+const SENSITIVE_FILE_PROBES = [
+  { path: "/.env", id: "exposed-dotenv", title: "Possible exposed .env file" },
+  { path: "/.git/config", id: "exposed-git-config", title: "Possible exposed Git config" },
+  { path: "/config.php.bak", id: "exposed-config-backup", title: "Possible exposed config backup" },
+  { path: "/backup.zip", id: "exposed-backup-archive", title: "Possible exposed backup archive" }
+] as const;
+
 export async function owaspAudit(options: OwaspAuditOptions): Promise<OwaspAuditResult> {
   const profile = options.owaspProfile ?? "passive";
   const startedAt = new Date().toISOString();
-  const checks = profile === "strict-headers" ? STRICT_HEADER_CHECKS : PASSIVE_CHECKS;
+  const checks = profile === "active-authorized" ? ACTIVE_AUTHORIZED_CHECKS : profile === "strict-headers" ? STRICT_HEADER_CHECKS : PASSIVE_CHECKS;
+
+  if (profile === "active-authorized") {
+    assertActiveAuthorized(options.url, options.scope);
+  }
 
   const base = await audit({
     ...options,
@@ -66,6 +98,10 @@ export async function owaspAudit(options: OwaspAuditOptions): Promise<OwaspAudit
     ...base.findings.map(enrichBaseFinding),
     ...extraPassiveFindings(base.finalUrl ?? options.url, base.observation?.network ?? [], profile)
   ];
+
+  if (profile === "active-authorized") {
+    findings.push(...await activeAuthorizedFindings(base.finalUrl ?? options.url, options));
+  }
 
   const result: OwaspAuditResult = {
     schemaVersion: "solarium.owasp-audit.v1",
@@ -180,6 +216,145 @@ function strictHeaderAdvisories(_network: NetworkObservation[]): AuditFinding[] 
   return [];
 }
 
+function assertActiveAuthorized(url: string, scope?: ScopePolicy): void {
+  if (!scope?.allowedHosts?.length) {
+    throw new Error("active-authorized OWASP audit requires a scope policy with allowedHosts");
+  }
+  if (!scope.authorizationNote?.trim()) {
+    throw new Error("active-authorized OWASP audit requires scope.authorizationNote documenting authorization");
+  }
+  assertUrlInScope(url, scope);
+}
+
+async function activeAuthorizedFindings(finalUrl: string, options: OwaspAuditOptions): Promise<AuditFinding[]> {
+  const base = safeUrl(finalUrl);
+  if (!base) return [];
+
+  const maxRequests = Math.max(0, Math.min(options.maxActiveRequests ?? 10, 25));
+  const delayMs = Math.max(0, options.activeDelayMs ?? 250);
+  const timeoutMs = Math.max(1000, options.activeRequestTimeoutMs ?? 10_000);
+  const findings: AuditFinding[] = [];
+  const probes: Array<{ method: "GET" | "HEAD" | "OPTIONS"; url: string; id: string; title: string; kind: "well-known" | "sensitive-file" | "methods" }> = [];
+
+  for (const probe of WELL_KNOWN_PROBES) {
+    probes.push({ method: "GET", url: new URL(probe.path, base).toString(), id: probe.id, title: probe.title, kind: "well-known" });
+  }
+  for (const probe of SENSITIVE_FILE_PROBES) {
+    probes.push({ method: "HEAD", url: new URL(probe.path, base).toString(), id: probe.id, title: probe.title, kind: "sensitive-file" });
+  }
+  probes.push({ method: "OPTIONS", url: base.toString(), id: "http-options-methods", title: "HTTP OPTIONS methods observed", kind: "methods" });
+
+  let sent = 0;
+  for (const probe of probes) {
+    if (sent >= maxRequests) break;
+    assertUrlInScope(probe.url, options.scope);
+    const result = await boundedProbe(probe.url, probe.method, timeoutMs);
+    sent += 1;
+
+    if (probe.kind === "well-known" && result.status && result.status >= 200 && result.status < 300) {
+      findings.push({
+        id: `owasp-active-${probe.id}`,
+        category: "well-known",
+        severity: "info",
+        title: probe.title,
+        description: "An active-authorized well-known file probe found a publicly available site metadata file.",
+        recommendation: "Review the file contents and ensure it is intentional, current, and does not disclose sensitive internal information.",
+        evidence: redactedProbeEvidence(probe.method, probe.url, result),
+        standard: "OWASP",
+        owasp: { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] }
+      });
+    }
+
+    if (probe.kind === "sensitive-file" && result.status && result.status >= 200 && result.status < 300) {
+      findings.push({
+        id: `owasp-active-${probe.id}`,
+        category: "sensitive-file",
+        severity: "high",
+        title: probe.title,
+        description: "An active-authorized bounded probe received a successful response for a path that commonly indicates accidental sensitive file exposure. Solarium did not retrieve or print the file body.",
+        recommendation: "Verify the path manually in an authorized workflow, remove the exposed file if present, and add server rules preventing access to sensitive dotfiles, VCS metadata, backups, and archives.",
+        evidence: redactedProbeEvidence(probe.method, probe.url, result),
+        standard: "OWASP",
+        owasp: { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] }
+      });
+    }
+
+    if (probe.kind === "methods" && result.allow) {
+      const allowed = result.allow.split(",").map((method) => method.trim().toUpperCase()).filter(Boolean);
+      const risky = allowed.filter((method) => !["GET", "HEAD", "POST", "OPTIONS"].includes(method));
+      if (risky.length > 0) {
+        findings.push({
+          id: "owasp-active-unusual-http-methods",
+          category: "methods",
+          severity: "medium",
+          title: "Unusual HTTP methods advertised",
+          description: "The target responded to an active-authorized OPTIONS probe with methods that may be unnecessary for a public web route.",
+          recommendation: "Disable unnecessary HTTP methods on public routes unless explicitly required.",
+          evidence: { method: probe.method, url: probe.url, status: result.status, allowedMethods: allowed },
+          standard: "OWASP",
+          owasp: { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] }
+        });
+      }
+    }
+
+    if (delayMs > 0 && sent < probes.length && sent < maxRequests) await delay(delayMs);
+  }
+
+  findings.push({
+    id: "owasp-active-authorized-run-summary",
+    category: "active-probe",
+    severity: "info",
+    title: "Active-authorized probes completed",
+    description: "The active-authorized profile ran a bounded fixed probe set. It does not perform DoS, brute-force, credential attacks, fuzzing, exploitation, or destructive form submission.",
+    recommendation: "Keep active-authorized runs scoped to systems you are authorized to test and tune maxActiveRequests, activeDelayMs, and activeRequestTimeoutMs for production safety.",
+    evidence: { probesSent: sent, maxActiveRequests: maxRequests, delayMs, timeoutMs },
+    standard: "OWASP",
+    owasp: { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] }
+  });
+
+  return findings;
+}
+
+async function boundedProbe(url: string, method: "GET" | "HEAD" | "OPTIONS", timeoutMs: number): Promise<{ status?: number; ok?: boolean; contentType?: string | null; contentLength?: string | null; allow?: string | null; error?: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method,
+      redirect: "manual",
+      signal: controller.signal,
+      headers: method === "GET" ? { Range: "bytes=0-1023" } : undefined
+    });
+    return {
+      status: response.status,
+      ok: response.ok,
+      contentType: response.headers.get("content-type"),
+      contentLength: response.headers.get("content-length"),
+      allow: response.headers.get("allow")
+    };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function redactedProbeEvidence(method: string, url: string, result: Awaited<ReturnType<typeof boundedProbe>>): Record<string, unknown> {
+  return {
+    method,
+    url,
+    status: result.status,
+    ok: result.ok,
+    contentType: result.contentType,
+    contentLength: result.contentLength,
+    error: result.error
+  };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function mapFindingToOwasp(finding: AuditFinding): { top10: string; asvs: string[] } {
   switch (finding.category) {
     case "headers":
@@ -193,6 +368,11 @@ function mapFindingToOwasp(finding: AuditFinding): { top10: string; asvs: string
       return { top10: "A02:2021-Cryptographic Failures", asvs: ["V5 Validation", "V9 Communications"] };
     case "graphql":
       return { top10: "A01:2021-Broken Access Control", asvs: ["V4 Access Control", "V5 Validation"] };
+    case "well-known":
+    case "sensitive-file":
+    case "methods":
+    case "active-probe":
+      return { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] };
     default:
       return { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] };
   }
