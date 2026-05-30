@@ -1,9 +1,37 @@
 import type { AgentAction, AgentSessionResult, AuditFinding, AuditResult, AuditSeverity, CrawlResult, LoopResult } from "../types.js";
 import type { GraphqlAuditResult } from "../security/graphql-audit.js";
+import type { OwaspAuditResult } from "../security/owasp-audit.js";
 
 export interface HtmlReportOptions {
   title?: string;
   includeJsonAppendix?: boolean;
+}
+
+
+export function renderOwaspAuditHtmlReport(result: OwaspAuditResult, options: HtmlReportOptions = {}): string {
+  const title = options.title ?? "Solarium OWASP Passive Audit Report";
+  const body: string[] = [];
+  body.push(`<h1>${h(title)}</h1>`);
+  body.push(`<section class="card"><dl>${row("Standard", result.standard)}${row("Profile", result.profile)}${row("URL", result.url)}${result.finalUrl ? row("Final URL", result.finalUrl) : ""}${result.title ? row("Page title", result.title) : ""}${row("Status", result.ok ? "OK" : "Failed")}${row("Started", result.startedAt)}${row("Finished", result.finishedAt)}${result.error ? row("Error", result.error) : ""}</dl></section>`);
+
+  body.push(`<h2>Checks</h2><ul>${result.checks.map((check) => `<li>${h(check)}</li>`).join("")}</ul>`);
+
+  body.push(`<h2>Severity Summary</h2>`);
+  body.push(`<table><thead><tr><th>Severity</th><th>Count</th></tr></thead><tbody>${(["high", "medium", "low", "info"] as AuditSeverity[]).map((severity) => `<tr><td><span class="badge ${severity}">${severity}</span></td><td>${result.summary[severity] ?? 0}</td></tr>`).join("")}</tbody></table>`);
+
+  body.push(`<h2>OWASP Summary</h2>`);
+  if (result.owaspSummary.length === 0) {
+    body.push(`<p>No OWASP-mapped findings were reported.</p>`);
+  } else {
+    body.push(`<table><thead><tr><th>OWASP category</th><th>Findings</th><th>High</th><th>Medium</th><th>Low</th><th>Info</th></tr></thead><tbody>${result.owaspSummary.map((entry) => `<tr><td>${h(entry.category)}</td><td>${entry.count}</td><td>${entry.severities.high}</td><td>${entry.severities.medium}</td><td>${entry.severities.low}</td><td>${entry.severities.info}</td></tr>`).join("")}</tbody></table>`);
+  }
+
+  appendNetworkPolicy(body, result.networkPolicy);
+
+  body.push(`<h2>Findings</h2>`);
+  body.push(result.findings.length ? result.findings.map((finding, index) => renderFinding(finding, index + 1)).join("\n") : `<p>No findings were reported by the current OWASP passive checks.</p>`);
+  appendJsonAppendix(body, result, options);
+  return page(title, body.join("\n"));
 }
 
 export function renderGraphqlAuditHtmlReport(result: GraphqlAuditResult, options: HtmlReportOptions = {}): string {
@@ -108,7 +136,8 @@ export function renderLoopHtmlReport(result: LoopResult, options: HtmlReportOpti
 }
 
 function renderFinding(finding: AuditFinding, number: number): string {
-  return `<article class="finding card ${h(finding.severity)}"><h3>${number}. ${h(finding.title)}</h3><dl>${row("ID", finding.id)}${row("Severity", finding.severity)}${row("Category", finding.category)}${row("Description", finding.description)}${row("Recommendation", finding.recommendation)}</dl>${finding.evidence ? `<h4>Evidence</h4><pre>${h(JSON.stringify(finding.evidence, null, 2))}</pre>` : ""}</article>`;
+  const standardRows = `${finding.standard ? row("Standard", finding.standard) : ""}${finding.owasp ? row("OWASP", finding.owasp.top10) : ""}${finding.owasp?.asvs?.length ? row("ASVS", finding.owasp.asvs.join(", ")) : ""}`;
+  return `<article class="finding card ${h(finding.severity)}"><h3>${number}. ${h(finding.title)}</h3><dl>${row("ID", finding.id)}${row("Severity", finding.severity)}${row("Category", finding.category)}${standardRows}${row("Description", finding.description)}${row("Recommendation", finding.recommendation)}</dl>${finding.evidence ? `<h4>Evidence</h4><pre>${h(JSON.stringify(finding.evidence, null, 2))}</pre>` : ""}</article>`;
 }
 
 function renderForms(forms: { method: string; action: string; fields: unknown[] }[]): string {

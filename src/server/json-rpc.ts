@@ -8,6 +8,7 @@ import { runActions } from "../agent/session.js";
 import { runLoop } from "../agent/loop.js";
 import { audit } from "../security/audit.js";
 import { graphqlAudit } from "../security/graphql-audit.js";
+import { owaspAudit } from "../security/owasp-audit.js";
 import { crawl } from "../security/crawler.js";
 import { checkUrlScope, validateScopePolicy, type ScopePolicy } from "../security/scope.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
@@ -167,6 +168,21 @@ const tools: ToolDefinition[] = [
       profile: profileSchema(),
       headless: { type: "boolean", default: true },
       includeObservation: { type: "boolean" },
+      maxTextChars: { type: "number", minimum: 0 },
+      maxElements: { type: "number", minimum: 0 }
+    }, ["url"])
+  },
+  {
+    name: "solarium.owaspAudit",
+    description: "Run a passive OWASP-mapped browser audit for an authorized page.",
+    inputSchema: objectSchema({
+      url: { type: "string" },
+      scope: scopeSchema(),
+      owaspProfile: { type: "string", enum: ["passive", "strict-headers"], default: "passive" },
+      engine: engineSchema(),
+      profile: profileSchema(),
+      headless: { type: "boolean", default: true },
+      outputPath: { type: "string" },
       maxTextChars: { type: "number", minimum: 0 },
       maxElements: { type: "number", minimum: 0 }
     }, ["url"])
@@ -401,6 +417,17 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
         includeObservation: optionalBoolean(args.includeObservation, false),
         observationOptions: observationOptions(args)
       });
+    case "solarium.owaspAudit":
+      return owaspAudit({
+        url: requireString(args.url, "url"),
+        scope: optionalScope(args.scope),
+        owaspProfile: optionalOwaspProfile(args.owaspProfile),
+        engine: optionalEngine(args.engine),
+        profile: optionalProfile(args.profile),
+        headless: optionalBoolean(args.headless, true),
+        outputPath: optionalString(args.outputPath),
+        observationOptions: observationOptions(args)
+      });
     case "solarium.graphqlAudit":
       return graphqlAudit({
         url: requireString(args.url, "url"),
@@ -566,6 +593,13 @@ function optionalEngine(value: unknown): BrowserEngine | undefined {
   if (value === undefined || value === null) return undefined;
   if (!["chromium", "firefox", "webkit"].includes(String(value))) throw rpcError(-32602, "engine must be chromium, firefox, or webkit");
   return value as BrowserEngine;
+}
+
+function optionalOwaspProfile(value: unknown): "passive" | "strict-headers" | undefined {
+  if (value === undefined || value === null) return undefined;
+  const profile = requireString(value, "owaspProfile");
+  if (profile !== "passive" && profile !== "strict-headers") throw rpcError(-32602, "owaspProfile must be passive or strict-headers");
+  return profile;
 }
 
 function optionalProfile(value: unknown): BrowserProfileName | undefined {

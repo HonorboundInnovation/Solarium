@@ -7,10 +7,11 @@ import { planActionsFromInspectResult } from "../agent/plan.js";
 import { runActions } from "../agent/session.js";
 import { createJsonlEventLogger } from "../reporting/events.js";
 import { replayEvents } from "../reporting/replay.js";
-import { renderAuditHtmlReport, renderCrawlHtmlReport, renderGraphqlAuditHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
-import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderGraphqlAuditMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
+import { renderAuditHtmlReport, renderCrawlHtmlReport, renderGraphqlAuditHtmlReport, renderOwaspAuditHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
+import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderGraphqlAuditMarkdownReport, renderOwaspAuditMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
 import { audit } from "../security/audit.js";
 import { graphqlAudit, type GraphqlAuditResult } from "../security/graphql-audit.js";
+import { owaspAudit, type OwaspAuditResult } from "../security/owasp-audit.js";
 import { crawl } from "../security/crawler.js";
 import { readBrowserProfile } from "../browser/profile-store.js";
 import { validateScopePolicy, type ScopePolicy } from "../security/scope.js";
@@ -29,7 +30,7 @@ import type {
   AgentSessionResult
 } from "../types.js";
 
-export type SolariumJobMode = "browse" | "inspect" | "plan" | "session" | "crawl" | "audit" | "graphql-audit" | "loop" | "replay";
+export type SolariumJobMode = "browse" | "inspect" | "plan" | "session" | "crawl" | "audit" | "owasp-audit" | "graphql-audit" | "loop" | "replay";
 
 export interface SolariumJob {
   mode: SolariumJobMode;
@@ -83,7 +84,7 @@ export function validateSolariumJob(value: unknown): SolariumJob {
   }
 
   const job = value as SolariumJob;
-  const modes = new Set<SolariumJobMode>(["browse", "inspect", "plan", "session", "crawl", "audit", "graphql-audit", "loop", "replay"]);
+  const modes = new Set<SolariumJobMode>(["browse", "inspect", "plan", "session", "crawl", "audit", "owasp-audit", "graphql-audit", "loop", "replay"]);
   if (!modes.has(job.mode)) {
     throw new Error(`Unsupported Solarium job mode: ${String(job.mode)}`);
   }
@@ -222,6 +223,19 @@ export async function runJob(job: SolariumJob, options: RunJobOptions = {}): Pro
       break;
     }
 
+    case "owasp-audit": {
+      result = await owaspAudit({
+        ...common,
+        url: requireUrl(job),
+        scope,
+        owaspProfile: parseOwaspProfile(optionalString(opt.owaspProfile ?? opt.profileName)),
+        outputPath: resolveOptionalPath(baseDir, optionalString(opt.outputPath)),
+        waitAfterNavigationMs: optionalNumber(opt.waitAfterNavigationMs),
+        observationOptions: observationOptions(opt)
+      });
+      break;
+    }
+
     case "graphql-audit": {
       if (!scope) throw new Error("graphql-audit jobs require scope or scopePath");
       result = await graphqlAudit({
@@ -307,6 +321,10 @@ async function maybeWriteReports(job: SolariumJob, baseDir: string, result: unkn
     case "audit":
       if (markdownPath) await writeTextFile(markdownPath, renderAuditMarkdownReport(result as AuditResult, reportOptions));
       if (htmlPath) await writeTextFile(htmlPath, renderAuditHtmlReport(result as AuditResult, reportOptions));
+      return;
+    case "owasp-audit":
+      if (markdownPath) await writeTextFile(markdownPath, renderOwaspAuditMarkdownReport(result as OwaspAuditResult, reportOptions));
+      if (htmlPath) await writeTextFile(htmlPath, renderOwaspAuditHtmlReport(result as OwaspAuditResult, reportOptions));
       return;
     case "graphql-audit":
       if (markdownPath) await writeTextFile(markdownPath, renderGraphqlAuditMarkdownReport(result as GraphqlAuditResult, reportOptions));
@@ -408,4 +426,10 @@ function resultOk(result: unknown): boolean {
 async function writeTextFile(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content, "utf8");
+}
+
+function parseOwaspProfile(value?: string): "passive" | "strict-headers" | undefined {
+  if (value === undefined) return undefined;
+  if (value !== "passive" && value !== "strict-headers") throw new Error(`Unsupported OWASP audit profile: ${value}`);
+  return value;
 }

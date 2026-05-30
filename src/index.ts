@@ -18,8 +18,10 @@ export { planActionsFromInspectResult, type PlanActionsOptions } from "./agent/p
 export { crawl } from "./security/crawler.js";
 export { audit } from "./security/audit.js";
 export { graphqlAudit, type GraphqlAuditOptions, type GraphqlAuditResult, type GraphqlEndpointProbe, type GraphqlOperationInventory } from "./security/graphql-audit.js";
+export { owaspAudit, type OwaspAuditOptions, type OwaspAuditProfile, type OwaspAuditResult, type OwaspCategorySummary } from "./security/owasp-audit.js";
 export {
   renderAuditMarkdownReport,
+  renderOwaspAuditMarkdownReport,
   renderGraphqlAuditMarkdownReport,
   renderCrawlMarkdownReport,
   renderLoopMarkdownReport,
@@ -28,6 +30,7 @@ export {
 } from "./reporting/markdown.js";
 export {
   renderAuditHtmlReport,
+  renderOwaspAuditHtmlReport,
   renderGraphqlAuditHtmlReport,
   renderCrawlHtmlReport,
   renderLoopHtmlReport,

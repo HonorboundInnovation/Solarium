@@ -14,11 +14,12 @@ import { createAuthSessionProfile, readAuthSessionProfile, resolveAuthSession } 
 import { validateSolariumFile, type SolariumValidationKind } from "../config/validate.js";
 import { audit } from "../security/audit.js";
 import { graphqlAudit } from "../security/graphql-audit.js";
+import { owaspAudit, type OwaspAuditProfile } from "../security/owasp-audit.js";
 import { crawl } from "../security/crawler.js";
 import { createJsonlEventLogger } from "../reporting/events.js";
 import { createSessionResumePlan, replayEvents } from "../reporting/replay.js";
-import { renderAuditHtmlReport, renderCrawlHtmlReport, renderGraphqlAuditHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
-import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderGraphqlAuditMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
+import { renderAuditHtmlReport, renderCrawlHtmlReport, renderGraphqlAuditHtmlReport, renderOwaspAuditHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
+import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderGraphqlAuditMarkdownReport, renderOwaspAuditMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
 import { createEvidenceRunManifest, type EvidenceRunKind } from "../reporting/evidence.js";
 import { createWorkflowSeedFromFiles } from "../skills/workflow-seed.js";
@@ -306,6 +307,72 @@ program
     }
   });
 
+
+
+program
+  .command("owasp-audit")
+  .description("Run a passive OWASP-mapped browser audit for an authorized page")
+  .argument("<url>", "URL to audit")
+  .option("--scope <path>", "Path to a JSON scope policy file")
+  .option("--profile <profile>", "OWASP audit profile: passive or strict-headers", "passive")
+  .option("-o, --output <path>", "Write the OWASP audit result JSON to a file")
+  .option("--report <path>", "Write a Markdown OWASP audit report to a file")
+  .option("--html-report <path>", "Write an HTML OWASP audit report to a file")
+  .option("--report-include-json", "Include the full JSON result as a report appendix")
+  .option("-e, --engine <engine>", "Browser engine: chromium, firefox, or webkit", "chromium")
+  .option("--browser-profile <profile>", "Browser profile", "chrome-stable")
+  .option("--profile-file <path>", "Path to a custom browser profile JSON file")
+  .option("--storage-state <path>", "Load Playwright browser context storage state from a JSON file")
+  .option("--save-storage-state <path>", "Save browser context storage state to a JSON file before closing")
+  .option("--auth-session <path>", "Path to a Solarium auth-session profile JSON file")
+  .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
+  .option("--headed", "Run with a visible browser window")
+  .option("--wait-after-navigation-ms <number>", "Delay after navigation before observing", parseInteger)
+  .option("--max-text-chars <number>", "Maximum observed visible-text characters", parseInteger)
+  .option("--max-elements <number>", "Maximum links/buttons/inputs/forms to observe", parseInteger)
+  .option("--trace", "Record a Playwright trace")
+  .action(async (url: string, options: Record<string, unknown>) => {
+    try {
+      const scope = await readOptionalScopePolicy(options.scope as string | undefined);
+      const result = await owaspAudit({
+        url,
+        scope,
+        owaspProfile: parseOwaspProfile(options.profile as string | undefined),
+        outputPath: options.output as string | undefined,
+        engine: options.engine as BrowserEngine,
+        profile: await resolveCliProfile({ ...options, profile: options.browserProfile ?? "chrome-stable" }),
+        headless: !options.headed,
+        storageState: (await resolveCliAuthSession(options)).storageState,
+        saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
+        downloadsDir: options.downloadsDir as string | undefined,
+        waitAfterNavigationMs: options.waitAfterNavigationMs as number | undefined,
+        observationOptions: {
+          maxTextChars: options.maxTextChars as number | undefined,
+          maxElements: options.maxElements as number | undefined
+        },
+        trace: Boolean(options.trace)
+      });
+
+      if (options.report) {
+        await writeTextFile(
+          options.report as string,
+          renderOwaspAuditMarkdownReport(result, { includeJsonAppendix: Boolean(options.reportIncludeJson) })
+        );
+      }
+      if (options.htmlReport) {
+        await writeTextFile(
+          options.htmlReport as string,
+          renderOwaspAuditHtmlReport(result, { includeJsonAppendix: Boolean(options.reportIncludeJson) })
+        );
+      }
+
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exitCode = 1;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    }
+  });
 
 
 program
@@ -826,6 +893,14 @@ program
   });
 
 program.parseAsync();
+
+function parseOwaspProfile(value?: string): OwaspAuditProfile {
+  const profile = value ?? "passive";
+  if (profile !== "passive" && profile !== "strict-headers") {
+    throw new Error(`Unsupported OWASP audit profile: ${profile}`);
+  }
+  return profile;
+}
 
 function parseInteger(value: string): number {
   const parsed = Number.parseInt(value, 10);

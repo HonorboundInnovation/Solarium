@@ -7,10 +7,72 @@ import type {
   LoopResult
 } from "../types.js";
 import type { GraphqlAuditResult } from "../security/graphql-audit.js";
+import type { OwaspAuditResult } from "../security/owasp-audit.js";
 
 export interface MarkdownReportOptions {
   title?: string;
   includeJsonAppendix?: boolean;
+}
+
+
+export function renderOwaspAuditMarkdownReport(result: OwaspAuditResult, options: MarkdownReportOptions = {}): string {
+  const lines: string[] = [];
+  lines.push(`# ${escapeMarkdown(options.title ?? "Solarium OWASP Passive Audit Report")}`);
+  lines.push("");
+  lines.push(`- **Standard:** ${result.standard}`);
+  lines.push(`- **Profile:** ${result.profile}`);
+  lines.push(`- **URL:** ${result.url}`);
+  if (result.finalUrl) lines.push(`- **Final URL:** ${result.finalUrl}`);
+  if (result.title) lines.push(`- **Page title:** ${escapeMarkdown(result.title)}`);
+  lines.push(`- **Status:** ${result.ok ? "OK" : "Failed"}`);
+  lines.push(`- **Started:** ${result.startedAt}`);
+  lines.push(`- **Finished:** ${result.finishedAt}`);
+  if (result.error) lines.push(`- **Error:** ${escapeMarkdown(result.error)}`);
+  lines.push("");
+
+  lines.push("## Checks");
+  lines.push("");
+  for (const check of result.checks) lines.push(`- ${escapeMarkdown(check)}`);
+  lines.push("");
+
+  lines.push("## Severity Summary");
+  lines.push("");
+  lines.push("| Severity | Count |");
+  lines.push("| --- | ---: |");
+  for (const severity of ["high", "medium", "low", "info"] as AuditSeverity[]) {
+    lines.push(`| ${severity} | ${result.summary[severity] ?? 0} |`);
+  }
+  lines.push("");
+
+  lines.push("## OWASP Summary");
+  lines.push("");
+  if (result.owaspSummary.length === 0) {
+    lines.push("No OWASP-mapped findings were reported.");
+  } else {
+    lines.push("| OWASP category | Findings | High | Medium | Low | Info |");
+    lines.push("| --- | ---: | ---: | ---: | ---: | ---: |");
+    for (const row of result.owaspSummary) {
+      lines.push(`| ${escapeMarkdown(row.category)} | ${row.count} | ${row.severities.high} | ${row.severities.medium} | ${row.severities.low} | ${row.severities.info} |`);
+    }
+  }
+  lines.push("");
+
+  appendNetworkPolicy(lines, result.networkPolicy);
+
+  lines.push("## Findings");
+  lines.push("");
+  if (result.findings.length === 0) {
+    lines.push("No findings were reported by the current OWASP passive checks.");
+    lines.push("");
+  } else {
+    result.findings.forEach((finding, index) => {
+      lines.push(renderFindingMarkdown(finding, index + 1));
+      lines.push("");
+    });
+  }
+
+  appendJsonAppendix(lines, result, options);
+  return lines.join("\n");
 }
 
 export function renderGraphqlAuditMarkdownReport(result: GraphqlAuditResult, options: MarkdownReportOptions = {}): string {
@@ -283,6 +345,11 @@ function renderFindingMarkdown(finding: AuditFinding, number: number): string {
   lines.push(`- **ID:** \`${finding.id}\``);
   lines.push(`- **Severity:** ${finding.severity}`);
   lines.push(`- **Category:** ${finding.category}`);
+  if (finding.standard) lines.push(`- **Standard:** ${escapeMarkdown(finding.standard)}`);
+  if (finding.owasp) {
+    lines.push(`- **OWASP:** ${escapeMarkdown(finding.owasp.top10)}`);
+    if (finding.owasp.asvs?.length) lines.push(`- **ASVS:** ${finding.owasp.asvs.map(escapeMarkdown).join(", ")}`);
+  }
   lines.push(`- **Description:** ${escapeMarkdown(finding.description)}`);
   lines.push(`- **Recommendation:** ${escapeMarkdown(finding.recommendation)}`);
   if (finding.evidence) {

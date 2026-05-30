@@ -12,7 +12,9 @@ import {
   renderAuditMarkdownReport,
   renderAuditHtmlReport,
   renderGraphqlAuditMarkdownReport,
-  renderGraphqlAuditHtmlReport
+  renderGraphqlAuditHtmlReport,
+  renderOwaspAuditMarkdownReport,
+  renderOwaspAuditHtmlReport
 } from "../dist/index.js";
 
 test("hostMatches supports exact hosts case-insensitively", () => {
@@ -192,4 +194,55 @@ test("audit and GraphQL audit render Markdown and HTML reports", () => {
   assert.match(gqlMarkdown, /Endpoint Probes/);
   assert.match(gqlHtml, /<!doctype html>/);
   assert.match(gqlHtml, /Schema Operation Inventory/);
+});
+
+
+test("OWASP audit reports render mapped findings", () => {
+  const result = {
+    schemaVersion: "solarium.owasp-audit.v1",
+    standard: "OWASP",
+    profile: "passive",
+    url: "https://example.com",
+    finalUrl: "https://example.com/",
+    title: "Example",
+    startedAt: "2025-01-01T00:00:00.000Z",
+    finishedAt: "2025-01-01T00:00:01.000Z",
+    ok: true,
+    checks: ["security-headers", "cookie-flags"],
+    findings: [
+      {
+        id: "missing-content-security-policy",
+        category: "headers",
+        severity: "medium",
+        title: "Missing content-security-policy header",
+        description: "The response did not include CSP.",
+        recommendation: "Add an application-specific CSP.",
+        evidence: { header: "content-security-policy", value: null },
+        standard: "OWASP",
+        owasp: { top10: "A05:2021-Security Misconfiguration", asvs: ["V14 Configuration"] }
+      }
+    ],
+    summary: { info: 0, low: 0, medium: 1, high: 0 },
+    owaspSummary: [
+      { category: "A05:2021-Security Misconfiguration", count: 1, severities: { info: 0, low: 0, medium: 1, high: 0 } }
+    ],
+    baseAudit: {
+      url: "https://example.com",
+      finalUrl: "https://example.com/",
+      title: "Example",
+      startedAt: "2025-01-01T00:00:00.000Z",
+      finishedAt: "2025-01-01T00:00:01.000Z",
+      ok: true,
+      findings: [],
+      summary: { info: 0, low: 0, medium: 0, high: 0 }
+    },
+    networkPolicy: { allowedRequests: 1, blockedRequests: 0, rateLimitedRequests: 0 }
+  };
+
+  const markdown = renderOwaspAuditMarkdownReport(result);
+  const html = renderOwaspAuditHtmlReport(result);
+  assert.match(markdown, /Solarium OWASP Passive Audit Report/);
+  assert.match(markdown, /A05:2021-Security Misconfiguration/);
+  assert.match(html, /<!doctype html>/);
+  assert.match(html, /OWASP Summary/);
 });

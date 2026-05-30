@@ -153,6 +153,7 @@ Supported commands:
 - `crawl`
 - `audit`
 - `graphql-audit`
+- `owasp-audit`
 - `loop`
 
 Use `--storage-state <path>` to load cookies/localStorage/sessionStorage into the browser context, and `--save-storage-state <path>` to write the final context state when the browser closes. Storage state files can contain sensitive authenticated session material, so keep them out of source control and treat them as local artifacts.
@@ -416,6 +417,23 @@ Current passive findings include:
 - insecure form actions
 - password forms on non-HTTPS pages
 
+## OWASP passive audit mode
+
+Solarium can run an OWASP-mapped passive browser audit that builds on the standard audit checks and groups findings by OWASP Top 10/ASVS context. It remains non-invasive: no fuzzing, brute force, exploitation, or form submission.
+
+```bash
+npm run dev -- owasp-audit https://example.com \
+  --scope scope.json \
+  --output .solarium/owasp-audit-result.json \
+  --report .solarium/owasp-audit-report.md \
+  --html-report .solarium/owasp-audit-report.html
+```
+
+Profiles:
+
+- `passive` — default browser-observed OWASP mapping for headers, cookies, mixed content, forms, HTTPS usage, failed resources, third-party scripts, and source-map signals.
+- `strict-headers` — reserved stricter profile for deployments that want stronger header expectations as the audit pack grows.
+
 ## GraphQL audit mode
 
 Solarium can also run bounded, non-DoS GraphQL endpoint and schema checks for an authorized target. The GraphQL audit supports the same JSON, Markdown, and HTML report pattern as the passive browser audit.
@@ -450,7 +468,7 @@ Current GraphQL findings include:
 
 ## Human-readable reports
 
-`session`, `crawl`, `audit`, and `graphql-audit` can write human-readable Markdown and HTML reports in addition to JSON results:
+`session`, `crawl`, `audit`, `owasp-audit`, and `graphql-audit` can write human-readable Markdown and HTML reports in addition to JSON results:
 
 ```bash
 npm run dev -- audit https://example.com \
@@ -649,7 +667,7 @@ console.log(plan.notes, result.ok);
 Audit API:
 
 ```ts
-import { audit, graphqlAudit, renderGraphqlAuditMarkdownReport } from "solarium";
+import { audit, owaspAudit, graphqlAudit, renderGraphqlAuditMarkdownReport } from "solarium";
 
 const result = await audit({
   url: "https://example.com",
@@ -781,6 +799,7 @@ Supported job modes:
 - `crawl`
 - `audit`
 - `graphql-audit`
+- `owasp-audit`
 - `loop`
 - `replay`
 

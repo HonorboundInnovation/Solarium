@@ -362,7 +362,16 @@ export interface CrawlResult {
 }
 
 export type AuditSeverity = "info" | "low" | "medium" | "high";
-export type AuditCategory = "headers" | "cookies" | "mixed-content" | "forms" | "graphql";
+export type AuditCategory =
+  | "headers"
+  | "cookies"
+  | "mixed-content"
+  | "forms"
+  | "graphql"
+  | "transport"
+  | "network"
+  | "supply-chain"
+  | "client-exposure";
 
 export interface AuditFinding {
   id: string;
@@ -372,6 +381,14 @@ export interface AuditFinding {
   description: string;
   recommendation: string;
   evidence?: Record<string, unknown>;
+  /** Optional audit standard associated with this finding, e.g. OWASP. */
+  standard?: string;
+  /** Optional OWASP mapping for report grouping and remediation context. */
+  owasp?: {
+    top10: string;
+    asvs?: string[];
+    references?: string[];
+  };
 }
 
 export interface HeaderAuditFinding extends AuditFinding {

@@ -70,7 +70,7 @@ function validateJobShape(value: unknown, issues: SolariumValidationIssue[]): vo
   const job = value as Record<string, unknown>;
   const mode = job.mode;
 
-  if ((mode === "browse" || mode === "inspect" || mode === "audit" || mode === "graphql-audit" || mode === "loop") && !isNonEmptyString(job.url)) {
+  if ((mode === "browse" || mode === "inspect" || mode === "audit" || mode === "owasp-audit" || mode === "graphql-audit" || mode === "loop") && !isNonEmptyString(job.url)) {
     issues.push({ path: "$.url", message: `${String(mode)} jobs require a non-empty url` });
   }
 
@@ -80,6 +80,10 @@ function validateJobShape(value: unknown, issues: SolariumValidationIssue[]): vo
 
   if (mode === "crawl" && !job.scope && !isNonEmptyString(job.scopePath)) {
     issues.push({ path: "$.scopePath", message: "crawl jobs require scope or scopePath" });
+  }
+
+  if (mode === "owasp-audit" && job.options && typeof job.options === "object" && "owaspProfile" in job.options && !["passive", "strict-headers"].includes(String((job.options as Record<string, unknown>).owaspProfile))) {
+    issues.push({ path: "$.options.owaspProfile", message: "owaspProfile must be passive or strict-headers" });
   }
 
   if (mode === "graphql-audit" && !job.scope && !isNonEmptyString(job.scopePath)) {
