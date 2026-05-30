@@ -10,6 +10,7 @@ import { planActionsFromInspectResult } from "../agent/plan.js";
 import { runLoop } from "../agent/loop.js";
 import { readSolariumJob, runJob } from "../config/job.js";
 import { getBuiltInProfile, listBuiltInProfiles, readBrowserProfile, summarizeProfile, validateBrowserProfile } from "../browser/profile-store.js";
+import { createAuthSessionProfile, readAuthSessionProfile, resolveAuthSession } from "../browser/auth-session.js";
 import { validateSolariumFile, type SolariumValidationKind } from "../config/validate.js";
 import { audit } from "../security/audit.js";
 import { crawl } from "../security/crawler.js";
@@ -40,6 +41,7 @@ program
   .option("--profile-file <path>", "Path to a custom browser profile JSON file")
   .option("--storage-state <path>", "Load Playwright browser context storage state from a JSON file")
   .option("--save-storage-state <path>", "Save browser context storage state to a JSON file before closing")
+  .option("--auth-session <path>", "Path to a Solarium auth-session profile JSON file")
   .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
   .option("--scope <path>", "Path to a JSON scope policy file")
   .option("--headed", "Run with a visible browser window")
@@ -58,8 +60,8 @@ program
         engine: options.engine as BrowserEngine,
         profile: await resolveCliProfile(options),
         headless: !options.headed,
-        storageState: options.storageState as string | undefined,
-        saveStorageState: options.saveStorageState as string | undefined,
+        storageState: (await resolveCliAuthSession(options)).storageState,
+        saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
         downloadsDir: options.downloadsDir as string | undefined,
         screenshotPath: options.screenshot as string | undefined,
         extractText: Boolean(options.extractText),
@@ -95,6 +97,7 @@ program
   .option("--profile-file <path>", "Path to a custom browser profile JSON file")
   .option("--storage-state <path>", "Load Playwright browser context storage state from a JSON file")
   .option("--save-storage-state <path>", "Save browser context storage state to a JSON file before closing")
+  .option("--auth-session <path>", "Path to a Solarium auth-session profile JSON file")
   .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
   .option("--scope <path>", "Path to a JSON scope policy file")
   .option("--headed", "Run with a visible browser window")
@@ -119,8 +122,8 @@ program
         engine: options.engine as BrowserEngine,
         profile: await resolveCliProfile(options),
         headless: !options.headed,
-        storageState: options.storageState as string | undefined,
-        saveStorageState: options.saveStorageState as string | undefined,
+        storageState: (await resolveCliAuthSession(options)).storageState,
+        saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
         downloadsDir: options.downloadsDir as string | undefined,
         sessionId: options.sessionId as string | undefined,
         evidenceDir: options.evidenceDir as string | undefined,
@@ -174,6 +177,7 @@ program
   .option("--profile-file <path>", "Path to a custom browser profile JSON file")
   .option("--storage-state <path>", "Load Playwright browser context storage state from a JSON file")
   .option("--save-storage-state <path>", "Save browser context storage state to a JSON file before closing")
+  .option("--auth-session <path>", "Path to a Solarium auth-session profile JSON file")
   .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
   .option("--headed", "Run with a visible browser window")
   .option("--max-pages <number>", "Maximum pages to visit", parseInteger, 10)
@@ -194,8 +198,8 @@ program
         engine: options.engine as BrowserEngine,
         profile: await resolveCliProfile(options),
         headless: !options.headed,
-        storageState: options.storageState as string | undefined,
-        saveStorageState: options.saveStorageState as string | undefined,
+        storageState: (await resolveCliAuthSession(options)).storageState,
+        saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
         downloadsDir: options.downloadsDir as string | undefined,
         maxPages: options.maxPages as number | undefined,
         maxDepth: options.maxDepth as number | undefined,
@@ -248,6 +252,7 @@ program
   .option("--profile-file <path>", "Path to a custom browser profile JSON file")
   .option("--storage-state <path>", "Load Playwright browser context storage state from a JSON file")
   .option("--save-storage-state <path>", "Save browser context storage state to a JSON file before closing")
+  .option("--auth-session <path>", "Path to a Solarium auth-session profile JSON file")
   .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
   .option("--headed", "Run with a visible browser window")
   .option("--include-observation", "Embed full page observation evidence in the audit result")
@@ -265,8 +270,8 @@ program
         engine: options.engine as BrowserEngine,
         profile: await resolveCliProfile(options),
         headless: !options.headed,
-        storageState: options.storageState as string | undefined,
-        saveStorageState: options.saveStorageState as string | undefined,
+        storageState: (await resolveCliAuthSession(options)).storageState,
+        saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
         downloadsDir: options.downloadsDir as string | undefined,
         includeObservation: Boolean(options.includeObservation),
         waitAfterNavigationMs: options.waitAfterNavigationMs as number | undefined,
@@ -312,6 +317,7 @@ program
   .option("--profile-file <path>", "Path to a custom browser profile JSON file")
   .option("--storage-state <path>", "Load Playwright browser context storage state from a JSON file")
   .option("--save-storage-state <path>", "Save browser context storage state to a JSON file before closing")
+  .option("--auth-session <path>", "Path to a Solarium auth-session profile JSON file")
   .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
   .option("--headed", "Run with a visible browser window")
   .option("--screenshot <path>", "Save a full-page screenshot")
@@ -334,8 +340,8 @@ program
         engine: options.engine as BrowserEngine,
         profile: await resolveCliProfile(options),
         headless: !options.headed,
-        storageState: options.storageState as string | undefined,
-        saveStorageState: options.saveStorageState as string | undefined,
+        storageState: (await resolveCliAuthSession(options)).storageState,
+        saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
         downloadsDir: options.downloadsDir as string | undefined,
         screenshotPath: options.screenshot as string | undefined,
         includeObservation: Boolean(options.includeObservation),
@@ -425,6 +431,7 @@ program
   .option("--profile-file <path>", "Path to a custom browser profile JSON file")
   .option("--storage-state <path>", "Load Playwright browser context storage state from a JSON file")
   .option("--save-storage-state <path>", "Save browser context storage state to a JSON file before closing")
+  .option("--auth-session <path>", "Path to a Solarium auth-session profile JSON file")
   .option("--downloads-dir <path>", "Directory where browser downloads should be accepted and stored")
   .option("--headed", "Run with a visible browser window")
   .option("--loop-id <id>", "Stable loop identifier")
@@ -455,8 +462,8 @@ program
         engine: options.engine as BrowserEngine,
         profile: await resolveCliProfile(options),
         headless: !options.headed,
-        storageState: options.storageState as string | undefined,
-        saveStorageState: options.saveStorageState as string | undefined,
+        storageState: (await resolveCliAuthSession(options)).storageState,
+        saveStorageState: (await resolveCliAuthSession(options)).saveStorageState,
         downloadsDir: options.downloadsDir as string | undefined,
         loopId: options.loopId as string | undefined,
         goal: options.goal as string | undefined,
@@ -629,6 +636,40 @@ program
     }
   });
 
+
+program
+  .command("auth-session")
+  .description("Create or inspect Solarium auth-session profiles that reference Playwright storage-state files")
+  .option("--create <path>", "Write a new auth-session profile JSON file")
+  .option("--show <path>", "Read and print an auth-session profile JSON file")
+  .option("--name <name>", "Profile name when creating")
+  .option("--storage-state <path>", "Playwright storage-state JSON path when creating")
+  .option("--description <text>", "Human-readable profile description")
+  .option("--secret-ref <ref...>", "Secret reference identifiers associated with the session; never plaintext secrets")
+  .action(async (options: Record<string, unknown>) => {
+    try {
+      if (options.show) {
+        console.log(JSON.stringify(await readAuthSessionProfile(options.show as string), null, 2));
+        return;
+      }
+      if (options.create) {
+        const profile = await createAuthSessionProfile({
+          output: options.create as string,
+          name: options.name as string,
+          storageState: options.storageState as string,
+          description: options.description as string | undefined,
+          secretRefs: options.secretRef as string[] | undefined
+        });
+        console.log(JSON.stringify(profile, null, 2));
+        return;
+      }
+      throw new Error("Use --create <path> or --show <path>");
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    }
+  });
+
 program
   .command("scope-check")
   .description("Validate whether a URL is allowed by a JSON scope policy file")
@@ -782,6 +823,15 @@ async function resolveCliProfile(options: Record<string, unknown>): Promise<Brow
     return readBrowserProfile(options.profileFile as string);
   }
   return (options.profile as BrowserProfileName | undefined) ?? "chrome-stable";
+}
+
+
+async function resolveCliAuthSession(options: Record<string, unknown>): Promise<{ storageState?: string; saveStorageState?: string }> {
+  return resolveAuthSession({
+    profilePath: options.authSession as string | undefined,
+    storageState: options.storageState as string | undefined,
+    saveStorageState: options.saveStorageState as string | undefined
+  });
 }
 
 async function readOptionalScopePolicy(path?: string): Promise<ScopePolicy | undefined> {

@@ -114,3 +114,14 @@ export {
   type WorkflowSeedInput,
   type WorkflowSeedOptions
 } from "./skills/workflow-seed.js";
+
+export {
+  createAuthSessionProfile,
+  readAuthSessionProfile,
+  resolveAuthSession,
+  validateAuthSessionProfile,
+  type AuthSessionProfile,
+  type CreateAuthSessionProfileOptions,
+  type ResolveAuthSessionOptions,
+  type ResolvedAuthSession
+} from "./browser/auth-session.js";

@@ -172,6 +172,26 @@ Config jobs can use the same paths relative to the job file:
 }
 ```
 
+
+
+### Auth session profiles
+
+Solarium supports auth-session profile files that reference Playwright storage-state JSON without embedding credentials in actions, logs, or workflow seeds.
+
+Create a profile:
+
+```bash
+npm run dev -- auth-session   --create .solarium/auth/staging-admin.auth-session.json   --name staging-admin   --storage-state .solarium/auth/staging-admin.state.json   --description "Staging admin browser state"   --secret-ref hbse://project/staging-admin
+```
+
+Use it with browser commands that accept storage state:
+
+```bash
+npm run dev -- browse https://staging.example.com   --auth-session .solarium/auth/staging-admin.auth-session.json   --scope .solarium/scope.json   --observe
+```
+
+Auth-session profiles use `schemaVersion: "solarium.auth-session.v1"`. They may include secret reference identifiers, but must never contain plaintext passwords, tokens, cookies copied into chat, or secret-bearing URLs.
+
 ## Scope policies
 
 Solarium supports JSON scope policy files for authorized testing boundaries.
