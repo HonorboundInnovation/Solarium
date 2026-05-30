@@ -34,80 +34,73 @@ export class ObservationRecorder {
     const maxConsoleEvents = options.maxConsoleEvents ?? DEFAULT_MAX_CONSOLE_EVENTS;
     const maxNetworkEvents = options.maxNetworkEvents ?? DEFAULT_MAX_NETWORK_EVENTS;
 
-    const domObservation = await this.page.evaluate(
-      ({ maxTextChars, maxElements }) => {
-        const cleanText = (value: string | null | undefined): string =>
-          (value ?? "").replace(/\s+/g, " ").trim();
+    // Use a string expression instead of passing a function object here.
+    // tsx/esbuild can wrap function literals with helper symbols such as
+    // `__name`; those helpers do not exist in the browser page context and
+    // cause Playwright page.evaluate failures. Keep this browser-side code
+    // self-contained JavaScript.
+    const domObservation = (await this.page.evaluate(`(() => {
+      const maxTextChars = ${JSON.stringify(maxTextChars)};
+      const maxElements = ${JSON.stringify(maxElements)};
+      const cleanText = (value) => (value ?? "").replace(/\s+/g, " ").trim();
 
-        const visibleText = cleanText(document.body?.innerText ?? "").slice(0, maxTextChars);
+      const visibleText = cleanText(document.body?.innerText ?? "").slice(0, maxTextChars);
 
-        const links = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))
-          .slice(0, maxElements)
-          .map((anchor) => ({
-            text: cleanText(anchor.innerText || anchor.getAttribute("aria-label") || anchor.href),
-            href: anchor.href,
-            target: anchor.getAttribute("target"),
-            rel: anchor.getAttribute("rel")
-          }));
+      const links = Array.from(document.querySelectorAll("a[href]"))
+        .slice(0, maxElements)
+        .map((anchor) => ({
+          text: cleanText(anchor.innerText || anchor.getAttribute("aria-label") || anchor.href),
+          href: anchor.href,
+          target: anchor.getAttribute("target"),
+          rel: anchor.getAttribute("rel")
+        }));
 
-        const buttons = Array.from(
-          document.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
-            "button, input[type='button'], input[type='submit'], input[type='reset']"
-          )
-        )
-          .slice(0, maxElements)
-          .map((button, index) => ({
-            text: cleanText(
-              button instanceof HTMLInputElement
-                ? button.value || button.getAttribute("aria-label") || button.name
-                : button.innerText || button.getAttribute("aria-label")
-            ),
-            type: button.getAttribute("type"),
-            disabled: button.disabled,
-            selectorHint: button.id ? `#${CSS.escape(button.id)}` : `button-or-input:${index}`
-          }));
+      const buttons = Array.from(
+        document.querySelectorAll("button, input[type='button'], input[type='submit'], input[type='reset']")
+      )
+        .slice(0, maxElements)
+        .map((button, index) => ({
+          text: cleanText(
+            button instanceof HTMLInputElement
+              ? button.value || button.getAttribute("aria-label") || button.name
+              : button.innerText || button.getAttribute("aria-label")
+          ),
+          type: button.getAttribute("type"),
+          disabled: button.disabled,
+          selectorHint: button.id ? "#" + CSS.escape(button.id) : "button-or-input:" + index
+        }));
 
-        const mapInput = (input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => ({
-          name: input.getAttribute("name"),
-          id: input.getAttribute("id"),
-          type: input instanceof HTMLInputElement ? input.type : input.tagName.toLowerCase(),
-          placeholder:
-            input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement
-              ? input.placeholder
-              : null,
-          value: input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement ? input.value : null,
-          required: input.required,
-          disabled: input.disabled
-        });
+      const mapInput = (input) => ({
+        name: input.getAttribute("name"),
+        id: input.getAttribute("id"),
+        type: input instanceof HTMLInputElement ? input.type : input.tagName.toLowerCase(),
+        placeholder:
+          input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement
+            ? input.placeholder
+            : null,
+        value: input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement ? input.value : null,
+        required: input.required,
+        disabled: input.disabled
+      });
 
-        const inputs = Array.from(
-          document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
-            "input, textarea, select"
-          )
-        )
-          .slice(0, maxElements)
-          .map(mapInput);
+      const inputs = Array.from(document.querySelectorAll("input, textarea, select"))
+        .slice(0, maxElements)
+        .map(mapInput);
 
-        const forms = Array.from(document.querySelectorAll<HTMLFormElement>("form"))
-          .slice(0, maxElements)
-          .map((form) => ({
-            action: form.action,
-            method: form.method || "get",
-            id: form.getAttribute("id"),
-            name: form.getAttribute("name"),
-            fields: Array.from(
-              form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
-                "input, textarea, select"
-              )
-            )
-              .slice(0, maxElements)
-              .map(mapInput)
-          }));
+      const forms = Array.from(document.querySelectorAll("form"))
+        .slice(0, maxElements)
+        .map((form) => ({
+          action: form.action,
+          method: form.method || "get",
+          id: form.getAttribute("id"),
+          name: form.getAttribute("name"),
+          fields: Array.from(form.querySelectorAll("input, textarea, select"))
+            .slice(0, maxElements)
+            .map(mapInput)
+        }));
 
-        return { visibleText, links, buttons, inputs, forms };
-      },
-      { maxTextChars, maxElements }
-    );
+      return { visibleText, links, buttons, inputs, forms };
+    })()`)) as Pick<PageObservation, "visibleText" | "links" | "buttons" | "inputs" | "forms">;
 
     return {
       observedAt: new Date().toISOString(),

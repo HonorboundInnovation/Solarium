@@ -13,11 +13,12 @@ import { getBuiltInProfile, listBuiltInProfiles, readBrowserProfile, summarizePr
 import { createAuthSessionProfile, readAuthSessionProfile, resolveAuthSession } from "../browser/auth-session.js";
 import { validateSolariumFile, type SolariumValidationKind } from "../config/validate.js";
 import { audit } from "../security/audit.js";
+import { graphqlAudit } from "../security/graphql-audit.js";
 import { crawl } from "../security/crawler.js";
 import { createJsonlEventLogger } from "../reporting/events.js";
 import { createSessionResumePlan, replayEvents } from "../reporting/replay.js";
-import { renderAuditHtmlReport, renderCrawlHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
-import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
+import { renderAuditHtmlReport, renderCrawlHtmlReport, renderGraphqlAuditHtmlReport, renderLoopHtmlReport, renderSessionHtmlReport } from "../reporting/html.js";
+import { renderAuditMarkdownReport, renderCrawlMarkdownReport, renderGraphqlAuditMarkdownReport, renderLoopMarkdownReport, renderSessionMarkdownReport } from "../reporting/markdown.js";
 import { createArtifactManifest } from "../reporting/artifacts.js";
 import { createEvidenceRunManifest, type EvidenceRunKind } from "../reporting/evidence.js";
 import { createWorkflowSeedFromFiles } from "../skills/workflow-seed.js";
@@ -305,6 +306,59 @@ program
     }
   });
 
+
+
+program
+  .command("graphql-audit")
+  .alias("gql-audit")
+  .description("Run bounded non-DoS GraphQL endpoint and schema security checks")
+  .argument("<url>", "Base URL or GraphQL endpoint URL")
+  .requiredOption("--scope <path>", "Path to a JSON scope policy file with allowedHosts")
+  .option("--endpoint <url>", "Explicit GraphQL endpoint path or URL")
+  .option("-o, --output <path>", "Write the GraphQL audit result JSON to a file")
+  .option("--report <path>", "Write a Markdown GraphQL audit report to a file")
+  .option("--html-report <path>", "Write an HTML GraphQL audit report to a file")
+  .option("--report-include-json", "Include the full JSON result as a report appendix")
+  .option("--timeout-ms <number>", "Per-request timeout in milliseconds", parseInteger)
+  .option("--max-endpoints <number>", "Maximum endpoint candidates to probe", parseInteger)
+  .option("--include-introspection-schema", "Include the full introspection response in JSON output")
+  .option("--no-batch-check", "Skip the tiny two-operation batching check")
+  .option("--safe-data-probes", "Run known read-only exposure probes when matching schema fields exist")
+  .action(async (url: string, options: Record<string, unknown>) => {
+    try {
+      const scope = await readScopePolicy(options.scope as string);
+      const result = await graphqlAudit({
+        url,
+        scope,
+        endpoint: options.endpoint as string | undefined,
+        outputPath: options.output as string | undefined,
+        timeoutMs: options.timeoutMs as number | undefined,
+        maxEndpoints: options.maxEndpoints as number | undefined,
+        includeIntrospectionSchema: Boolean(options.includeIntrospectionSchema),
+        batchCheck: options.batchCheck as boolean | undefined,
+        safeDataProbes: Boolean(options.safeDataProbes)
+      });
+
+      if (options.report) {
+        await writeTextFile(
+          options.report as string,
+          renderGraphqlAuditMarkdownReport(result, { includeJsonAppendix: Boolean(options.reportIncludeJson) })
+        );
+      }
+      if (options.htmlReport) {
+        await writeTextFile(
+          options.htmlReport as string,
+          renderGraphqlAuditHtmlReport(result, { includeJsonAppendix: Boolean(options.reportIncludeJson) })
+        );
+      }
+
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exitCode = 1;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    }
+  });
 
 program
   .command("inspect")

@@ -6,10 +6,69 @@ import type {
   CrawlResult,
   LoopResult
 } from "../types.js";
+import type { GraphqlAuditResult } from "../security/graphql-audit.js";
 
 export interface MarkdownReportOptions {
   title?: string;
   includeJsonAppendix?: boolean;
+}
+
+
+export function renderGraphqlAuditMarkdownReport(result: GraphqlAuditResult, options: MarkdownReportOptions = {}): string {
+  const lines: string[] = [];
+  lines.push(`# ${escapeMarkdown(options.title ?? "Solarium GraphQL Audit Report")}`);
+  lines.push("");
+  lines.push(`- **URL:** ${result.url}`);
+  if (result.endpoint) lines.push(`- **Endpoint:** ${result.endpoint}`);
+  lines.push(`- **Status:** ${result.ok ? "OK" : "Completed with errors"}`);
+  lines.push(`- **Started:** ${result.startedAt}`);
+  lines.push(`- **Finished:** ${result.finishedAt}`);
+  if (result.error) lines.push(`- **Error:** ${escapeMarkdown(result.error)}`);
+  lines.push("");
+
+  lines.push("## Summary");
+  lines.push("");
+  lines.push("| Severity | Count |");
+  lines.push("| --- | ---: |");
+  for (const severity of ["high", "medium", "low", "info"] as AuditSeverity[]) {
+    lines.push(`| ${severity} | ${result.summary[severity] ?? 0} |`);
+  }
+  lines.push("");
+
+  appendNetworkPolicy(lines, result.networkPolicy);
+
+  lines.push("## Endpoint Probes");
+  lines.push("");
+  for (const probe of result.endpointProbes) {
+    lines.push(`- ${probe.ok ? "OK" : "No"}: ${probe.url}${probe.status ? ` (${probe.status})` : ""}${probe.typename ? ` → ${probe.typename}` : ""}${probe.error ? ` — ${escapeMarkdown(probe.error)}` : ""}`);
+  }
+  lines.push("");
+
+  if (result.inventory) {
+    lines.push("## Schema Operation Inventory");
+    lines.push("");
+    lines.push(`- **Query fields:** ${result.inventory.queryFields.length ? result.inventory.queryFields.map((field) => `\`${field}\``).join(", ") : "none"}`);
+    lines.push(`- **Mutation fields:** ${result.inventory.mutationFields.length ? result.inventory.mutationFields.map((field) => `\`${field}\``).join(", ") : "none"}`);
+    lines.push(`- **Subscription fields:** ${result.inventory.subscriptionFields.length ? result.inventory.subscriptionFields.map((field) => `\`${field}\``).join(", ") : "none"}`);
+    if (result.inventory.sensitiveFields.length) lines.push(`- **Sensitive-looking fields:** ${result.inventory.sensitiveFields.map((field) => `\`${field}\``).join(", ")}`);
+    if (result.inventory.dangerousFields.length) lines.push(`- **Dangerous-looking operations:** ${result.inventory.dangerousFields.map((field) => `\`${field}\``).join(", ")}`);
+    lines.push("");
+  }
+
+  lines.push("## Findings");
+  lines.push("");
+  if (result.findings.length === 0) {
+    lines.push("No GraphQL findings were reported by the current checks.");
+    lines.push("");
+  } else {
+    result.findings.forEach((finding, index) => {
+      lines.push(renderFindingMarkdown(finding, index + 1));
+      lines.push("");
+    });
+  }
+
+  appendJsonAppendix(lines, result, options);
+  return lines.join("\n");
 }
 
 export function renderAuditMarkdownReport(result: AuditResult, options: MarkdownReportOptions = {}): string {

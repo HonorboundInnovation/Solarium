@@ -362,7 +362,7 @@ export interface CrawlResult {
 }
 
 export type AuditSeverity = "info" | "low" | "medium" | "high";
-export type AuditCategory = "headers" | "cookies" | "mixed-content" | "forms";
+export type AuditCategory = "headers" | "cookies" | "mixed-content" | "forms" | "graphql";
 
 export interface AuditFinding {
   id: string;

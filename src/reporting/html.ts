@@ -1,8 +1,28 @@
 import type { AgentAction, AgentSessionResult, AuditFinding, AuditResult, AuditSeverity, CrawlResult, LoopResult } from "../types.js";
+import type { GraphqlAuditResult } from "../security/graphql-audit.js";
 
 export interface HtmlReportOptions {
   title?: string;
   includeJsonAppendix?: boolean;
+}
+
+
+export function renderGraphqlAuditHtmlReport(result: GraphqlAuditResult, options: HtmlReportOptions = {}): string {
+  const title = options.title ?? "Solarium GraphQL Audit Report";
+  const body: string[] = [];
+  body.push(`<h1>${h(title)}</h1>`);
+  body.push(`<section class="card"><dl>${row("URL", result.url)}${result.endpoint ? row("Endpoint", result.endpoint) : ""}${row("Status", result.ok ? "OK" : "Completed with errors")}${row("Started", result.startedAt)}${row("Finished", result.finishedAt)}${result.error ? row("Error", result.error) : ""}</dl></section>`);
+  body.push(`<h2>Summary</h2>`);
+  body.push(`<table><thead><tr><th>Severity</th><th>Count</th></tr></thead><tbody>${(["high", "medium", "low", "info"] as AuditSeverity[]).map((severity) => `<tr><td><span class="badge ${severity}">${severity}</span></td><td>${result.summary[severity] ?? 0}</td></tr>`).join("")}</tbody></table>`);
+  appendNetworkPolicy(body, result.networkPolicy);
+  body.push(`<h2>Endpoint Probes</h2><ul>${result.endpointProbes.map((probe) => `<li>${probe.ok ? "OK" : "No"}: ${h(probe.url)}${probe.status ? ` (${probe.status})` : ""}${probe.typename ? ` → ${h(probe.typename)}` : ""}${probe.error ? ` — ${h(probe.error)}` : ""}</li>`).join("")}</ul>`);
+  if (result.inventory) {
+    body.push(`<h2>Schema Operation Inventory</h2><ul><li>Query fields: ${result.inventory.queryFields.map((field) => `<code>${h(field)}</code>`).join(", ") || "none"}</li><li>Mutation fields: ${result.inventory.mutationFields.map((field) => `<code>${h(field)}</code>`).join(", ") || "none"}</li><li>Subscription fields: ${result.inventory.subscriptionFields.map((field) => `<code>${h(field)}</code>`).join(", ") || "none"}</li>${result.inventory.sensitiveFields.length ? `<li>Sensitive-looking fields: ${result.inventory.sensitiveFields.map((field) => `<code>${h(field)}</code>`).join(", ")}</li>` : ""}${result.inventory.dangerousFields.length ? `<li>Dangerous-looking operations: ${result.inventory.dangerousFields.map((field) => `<code>${h(field)}</code>`).join(", ")}</li>` : ""}</ul>`);
+  }
+  body.push(`<h2>Findings</h2>`);
+  body.push(result.findings.length ? result.findings.map((finding, index) => renderFinding(finding, index + 1)).join("\n") : `<p>No GraphQL findings were reported by the current checks.</p>`);
+  appendJsonAppendix(body, result, options);
+  return page(title, body.join("\n"));
 }
 
 export function renderAuditHtmlReport(result: AuditResult, options: HtmlReportOptions = {}): string {
